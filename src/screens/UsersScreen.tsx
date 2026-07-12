@@ -20,7 +20,6 @@ interface UserOrder {
   id: string;
   created_at: string;
   total: number;
-  total: number;
   status: string;
   user_id: string;
 }
