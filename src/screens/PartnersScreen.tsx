@@ -14,12 +14,14 @@ interface Partner {
   region: string;
   city: string;
   is_active: boolean;
+  margin_share: number;
+  coordinates: string;
   created_at: string;
 }
 
 const regions = ['city_north', 'city_south', 'city_east', 'city_west'];
 
-const defaultForm = { name: '', email: '', phone: '', region: 'city_north', city: '', password: '' };
+const defaultForm = { name: '', email: '', phone: '', region: 'city_north', city: '', password: '', margin_share: 0, coordinates: '' };
 
 export const PartnersScreen: React.FC<PartnersScreenProps> = () => {
   const [partners, setPartners] = useState<Partner[]>([]);
@@ -53,7 +55,7 @@ export const PartnersScreen: React.FC<PartnersScreenProps> = () => {
 
   const openEdit = (p: Partner) => {
     setEditId(p.id);
-    setForm({ name: p.name, email: p.email, phone: p.phone, region: p.region, city: p.city, password: '' });
+    setForm({ name: p.name, email: p.email, phone: p.phone, region: p.region, city: p.city, password: '', margin_share: p.margin_share || 0, coordinates: p.coordinates || '' });
     setError(null);
     setModalOpen(true);
   };
@@ -64,7 +66,7 @@ export const PartnersScreen: React.FC<PartnersScreenProps> = () => {
 
     if (editId) {
       // Update partner info
-      const update: any = { name: form.name, phone: form.phone, region: form.region, city: form.city };
+      const update: any = { name: form.name, phone: form.phone, region: form.region, city: form.city, margin_share: Number(form.margin_share), coordinates: form.coordinates };
       await supabase.from('partners').update(update).eq('id', editId);
 
       // If password provided, update via Auth admin API (will need a server function)
@@ -92,6 +94,8 @@ export const PartnersScreen: React.FC<PartnersScreenProps> = () => {
         phone: form.phone,
         region: form.region,
         city: form.city,
+        margin_share: Number(form.margin_share),
+        coordinates: form.coordinates,
         is_active: true,
       });
 
@@ -161,6 +165,9 @@ export const PartnersScreen: React.FC<PartnersScreenProps> = () => {
                 <span className="flex items-center gap-2"><MapPin className="w-3.5 h-3.5 text-primary" /> {formatRegion(partner.region)} — {partner.city}</span>
                 <span className="flex items-center gap-2"><Mail className="w-3.5 h-3.5" /> {partner.email}</span>
                 {partner.phone && <span className="flex items-center gap-2"><Phone className="w-3.5 h-3.5" /> {partner.phone}</span>}
+                <div className="mt-1 flex items-center gap-2">
+                  <span className="text-xs font-semibold px-2 py-1 rounded bg-surface-container-high text-on-surface">Margin Share: {partner.margin_share || 0}%</span>
+                </div>
               </div>
 
               <div className="flex items-center justify-between pt-3 border-t border-outline-variant/20">
@@ -234,6 +241,16 @@ export const PartnersScreen: React.FC<PartnersScreenProps> = () => {
               <div>
                 <label className="text-xs font-semibold text-on-surface-variant mb-1 block">Phone</label>
                 <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="w-full px-4 py-2.5 bg-surface-container-low border border-outline-variant rounded-lg text-sm focus:outline-none focus:border-primary" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-semibold text-on-surface-variant mb-1 block">Margin Share (%)</label>
+                  <input type="number" step="0.1" value={form.margin_share} onChange={(e) => setForm({ ...form, margin_share: Number(e.target.value) })} className="w-full px-4 py-2.5 bg-surface-container-low border border-outline-variant rounded-lg text-sm focus:outline-none focus:border-primary" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-on-surface-variant mb-1 block">Location (Co-ordinates)</label>
+                  <input value={form.coordinates} onChange={(e) => setForm({ ...form, coordinates: e.target.value })} placeholder="e.g. 26.76, 83.37" className="w-full px-4 py-2.5 bg-surface-container-low border border-outline-variant rounded-lg text-sm focus:outline-none focus:border-primary" />
+                </div>
               </div>
               <button
                 onClick={handleSave} disabled={saving || !form.name || !form.email}

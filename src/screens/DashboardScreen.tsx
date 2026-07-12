@@ -7,28 +7,28 @@ interface DashboardScreenProps {
   onNavigate: (route: string) => void;
 }
 
-const chartData = [
-  { month: 'Jan', revenue: 12000 },
-  { month: 'Feb', revenue: 18000 },
-  { month: 'Mar', revenue: 25000 },
-  { month: 'Apr', revenue: 32000 },
-  { month: 'May', revenue: 58000 },
-  { month: 'Jun', revenue: 89000 },
-];
+// Dynamic chart data will be set in state
 
 interface RecentOrder {
   id: string;
   created_at: string;
-  total_amount: number;
+  total: number;
   status: string;
   user_id: string;
-  profiles?: { name: string } | null;
+  assigned_partner_id?: string | null;
+  partners?: { margin_share: number } | { margin_share: number }[] | null;
 }
 
 export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) => {
-  const [dateFilter, setDateFilter] = useState<'today' | '7d' | '30d' | '12m'>('today');
-  const [stats, setStats] = useState({ totalSales: 0, totalOrders: 0, totalUsers: 0, activePartners: 0 });
+  const [dateFilter, setDateFilter] = useState<'today' | '7d' | '30d' | '12m'>('30d');
+  const [stats, setStats] = useState({ 
+    totalSales: { value: 0, change: '+0.0%', up: true }, 
+    totalOrders: { value: 0, change: '+0.0%', up: true }, 
+    totalUsers: { value: 0, change: '+0.0%', up: true }, 
+    activePartners: { value: 0, change: '0.0%', up: true }
+  });
   const [recentOrders, setRecentOrders] = useState<RecentOrder[]>([]);
+  const [dynamicChartData, setDynamicChartData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -38,44 +38,125 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
   const loadDashboardData = async () => {
     setLoading(true);
 
+    const now = new Date();
+    let currentStart = new Date();
+    let previousStart = new Date();
+    
+    if (dateFilter === 'today') {
+      currentStart.setHours(0,0,0,0);
+      previousStart.setHours(0,0,0,0);
+      previousStart.setDate(previousStart.getDate() - 1);
+    } else if (dateFilter === '7d') {
+      currentStart.setDate(now.getDate() - 7);
+      previousStart.setDate(now.getDate() - 14);
+    } else if (dateFilter === '30d') {
+      currentStart.setDate(now.getDate() - 30);
+      previousStart.setDate(now.getDate() - 60);
+    } else if (dateFilter === '12m') {
+      currentStart.setMonth(now.getMonth() - 12);
+      previousStart.setMonth(now.getMonth() - 24);
+    }
+
     // Get orders
-    const { data: orders } = await supabase
+    const { data: allOrders, error: orderError } = await (supabase
       .from('orders')
-      .select('id, created_at, total_amount, status, user_id')
-      .order('created_at', { ascending: false })
-      .limit(50);
+      .select('id, created_at, total, status, user_id, assigned_partner_id, partners(margin_share)')
+      .gte('created_at', previousStart.toISOString())
+      .order('created_at', { ascending: false }) as unknown as Promise<{ data: RecentOrder[] | null; error: any }>);
 
-    // Get user count
-    const { count: userCount } = await supabase
+    // Get profiles
+    const { data: allProfiles, error: profileError } = await supabase
       .from('profiles')
-      .select('*', { count: 'exact', head: true });
+      .select('created_at')
+      .gte('created_at', previousStart.toISOString());
 
-    // Get partner count
-    const { count: partnerCount } = await supabase
+    // Get partners
+    const { data: allPartners, error: partnerError } = await supabase
       .from('partners')
-      .select('*', { count: 'exact', head: true })
-      .eq('is_active', true);
+      .select('created_at, is_active')
+      .gte('created_at', previousStart.toISOString());
 
-    const totalSales = (orders || []).reduce((s, o) => s + (o.total_amount || 0), 0);
+    console.log("Dashboard Debug:");
+    console.log("Orders:", allOrders, "Error:", orderError);
+    console.log("Profiles:", allProfiles, "Error:", profileError);
+    console.log("Partners:", allPartners, "Error:", partnerError);
+
+    const orders = allOrders || [];
+    const currentOrders = orders.filter(o => new Date(o.created_at) >= currentStart);
+    const previousOrders = orders.filter(o => new Date(o.created_at) >= previousStart && new Date(o.created_at) < currentStart);
+
+    const profiles = allProfiles || [];
+    const currentProfiles = profiles.filter(p => new Date(p.created_at) >= currentStart);
+    const previousProfiles = profiles.filter(p => new Date(p.created_at) >= previousStart && new Date(p.created_at) < currentStart);
+
+    const partnersData = allPartners || [];
+    const currentPartners = partnersData.filter(p => new Date(p.created_at) >= currentStart && p.is_active);
+    const previousPartners = partnersData.filter(p => new Date(p.created_at) >= previousStart && new Date(p.created_at) < currentStart && p.is_active);
+
+    const calcSales = (arr: any[]) => arr
+      .filter(o => o.status === 'Delivered' || o.status === 'delivered')
+      .reduce((sum, o) => sum + (o.total || 0), 0);
+    const currentSales = calcSales(currentOrders);
+    const previousSales = calcSales(previousOrders);
+
+    const calculateChange = (current: number, previous: number) => {
+      if (previous === 0) return current > 0 ? { change: '+100%', up: true } : { change: '0.0%', up: true };
+      const percent = ((current - previous) / previous) * 100;
+      return {
+        change: `${percent > 0 ? '+' : ''}${percent.toFixed(1)}%`,
+        up: percent >= 0
+      };
+    };
 
     setStats({
-      totalSales,
-      totalOrders: orders?.length || 0,
-      totalUsers: userCount || 0,
-      activePartners: partnerCount || 0,
+      totalSales: { value: currentSales, ...calculateChange(currentSales, previousSales) },
+      totalOrders: { value: currentOrders.length, ...calculateChange(currentOrders.length, previousOrders.length) },
+      totalUsers: { value: currentProfiles.length, ...calculateChange(currentProfiles.length, previousProfiles.length) },
+      activePartners: { value: currentPartners.length, ...calculateChange(currentPartners.length, previousPartners.length) },
     });
 
-    setRecentOrders((orders || []).slice(0, 5));
+    // Generate dynamic chart data based on Revenue (margin_share of delivered orders)
+    const chartOrders = currentOrders.filter(o => o.status === 'Delivered' || o.status === 'delivered');
+    let groupedData: Record<string, number> = {};
+
+    chartOrders.forEach(o => {
+      const p = Array.isArray(o.partners) ? o.partners[0] : o.partners;
+      const margin = p?.margin_share || 0;
+      const rev = (o.total || 0) * (margin / 100);
+      const d = new Date(o.created_at);
+      let key = '';
+      if (dateFilter === 'today') key = d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+      else if (dateFilter === '12m') key = d.toLocaleDateString('en-IN', { month: 'short' });
+      else key = d.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
+
+      groupedData[key] = (groupedData[key] || 0) + rev;
+    });
+
+    // If no data, provide an empty state to avoid broken chart
+    if (Object.keys(groupedData).length === 0) {
+       groupedData = { 'No Data': 0 };
+    }
+
+    setDynamicChartData(Object.entries(groupedData).map(([label, revenue]) => ({ label, revenue })).reverse());
+    
+    // For recent orders table
+    const { data: recent } = await supabase
+      .from('orders')
+      .select('id, created_at, total, status, user_id')
+      .order('created_at', { ascending: false })
+      .limit(5);
+
+    setRecentOrders(recent || []);
     setLoading(false);
   };
 
   const formatCurrency = (n: number) => '₹' + n.toLocaleString('en-IN');
 
   const statCards = [
-    { label: 'Total Sales', value: formatCurrency(stats.totalSales), change: '+12.5%', up: true, icon: '₹' },
-    { label: 'Total Orders', value: stats.totalOrders.toLocaleString(), change: '+5.2%', up: true, icon: '📦' },
-    { label: 'Total Users', value: stats.totalUsers.toLocaleString(), change: '+2.1%', up: true, icon: '👤' },
-    { label: 'Active Partners', value: stats.activePartners.toLocaleString(), change: '0.0%', up: false, icon: '🏢' },
+    { label: 'Total Sales', value: formatCurrency(stats.totalSales.value), change: stats.totalSales.change, up: stats.totalSales.up, icon: '₹' },
+    { label: 'Total Orders', value: stats.totalOrders.value.toLocaleString(), change: stats.totalOrders.change, up: stats.totalOrders.up, icon: '📦' },
+    { label: 'Total Users', value: stats.totalUsers.value.toLocaleString(), change: stats.totalUsers.change, up: stats.totalUsers.up, icon: '👤' },
+    { label: 'Active Partners', value: stats.activePartners.value.toLocaleString(), change: stats.activePartners.change, up: stats.activePartners.up, icon: '🏢' },
   ];
 
   const getStatusBadge = (status: string) => {
@@ -145,7 +226,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
           </div>
           <div className="flex-1 min-h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData}>
+              <AreaChart data={dynamicChartData}>
                 <defs>
                   <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#006c49" stopOpacity={0.3} />
@@ -153,8 +234,8 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#c0c9bb" strokeOpacity={0.3} />
-                <XAxis dataKey="month" tick={{ fontSize: 12, fill: '#717a6d' }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 12, fill: '#717a6d' }} axisLine={false} tickLine={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 12, fill: '#717a6d' }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 12, fill: '#717a6d' }} axisLine={false} tickLine={false} width={80} tickFormatter={(v) => `₹${v}`} />
                 <Tooltip
                   contentStyle={{
                     background: '#ffffff',
@@ -209,7 +290,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                       {new Date(order.created_at).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' })}
                     </td>
                     <td className="py-3 px-4 text-sm">{order.user_id?.split('-')[0] || 'N/A'}</td>
-                    <td className="py-3 px-4 font-medium">{formatCurrency(order.total_amount || 0)}</td>
+                    <td className="py-3 px-4 font-medium">{formatCurrency(order.total || 0)}</td>
                     <td className="py-3 px-4">
                       <span className={`inline-flex items-center px-2 py-1 rounded-full text-[10px] font-semibold capitalize ${getStatusBadge(order.status)}`}>
                         {order.status}

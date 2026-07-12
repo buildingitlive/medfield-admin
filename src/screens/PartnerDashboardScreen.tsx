@@ -32,32 +32,38 @@ export const PartnerDashboardScreen: React.FC<PartnerDashboardScreenProps> = () 
 
   const loadOrders = async () => {
     setLoading(true);
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('orders')
       .select('id, created_at, total, status, user_id, items:order_items(*), address_snapshot')
       .eq('assigned_partner_id', partnerProfile?.id)
       .order('created_at', { ascending: false });
+    
+    if (error) {
+      console.error("Supabase Error loading orders:", error);
+    }
+    
     setOrders(data || []);
     setLoading(false);
   };
 
   const markDelivered = async (orderId: string) => {
     setMarking(true);
-    await supabase.from('orders').update({ status: 'delivered' }).eq('id', orderId);
+    await supabase.from('orders').update({ status: 'Delivered' }).eq('id', orderId);
     setMarking(false);
     setSelectedOrder(null);
     loadOrders();
   };
 
-  const pendingOrders = orders.filter(o => o.status !== 'delivered' && o.status !== 'cancelled');
+  const pendingOrders = orders.filter(o => o.status !== 'Delivered' && o.status !== 'cancelled');
   const totalCustomers = new Set(orders.map(o => o.user_id)).size;
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'confirmed': return 'bg-blue-100 text-blue-800';
-      case 'processing': return 'bg-amber-100 text-amber-800';
-      case 'shipped': return 'bg-indigo-100 text-indigo-800';
-      case 'delivered': return 'bg-secondary-container/30 text-on-secondary-container';
+      case 'Order Placed': return 'bg-amber-100 text-amber-800';
+      case 'Verified by Pharmacy': return 'bg-blue-100 text-blue-800';
+      case 'Dispatched from Field Warehouse': return 'bg-indigo-100 text-indigo-800';
+      case 'Out for Delivery': return 'bg-orange-100 text-orange-800';
+      case 'Delivered': return 'bg-secondary-container/30 text-on-secondary-container';
       default: return 'bg-surface-variant text-on-surface-variant';
     }
   };
@@ -122,7 +128,7 @@ export const PartnerDashboardScreen: React.FC<PartnerDashboardScreenProps> = () 
                 <div className="flex justify-between items-start mb-3">
                   <span className="font-mono text-xs text-on-surface-variant">#{order.id.split('-')[0]}</span>
                   <span className={`text-[10px] font-semibold px-2.5 py-1 rounded-full uppercase ${getStatusColor(order.status)}`}>
-                    {order.status === 'confirmed' ? 'En Route' : order.status}
+                    {order.status === 'Verified by Pharmacy' ? 'En Route' : order.status}
                   </span>
                 </div>
                 <h3 className="text-base font-semibold text-on-surface mb-2">
@@ -133,9 +139,16 @@ export const PartnerDashboardScreen: React.FC<PartnerDashboardScreenProps> = () 
                   <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {order.address_snapshot?.city || 'N/A'}</span>
                 </div>
                 <div className="mt-3 flex gap-2">
-                  <button className="flex-1 py-2 border border-outline-variant rounded-lg text-xs font-semibold text-on-surface-variant hover:bg-surface-container transition-colors flex items-center justify-center gap-1">
+                  <a 
+                    href={order.address_snapshot?.phone ? `tel:${order.address_snapshot.phone}` : '#'}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!order.address_snapshot?.phone) e.preventDefault();
+                    }}
+                    className="flex-1 py-2 border border-outline-variant rounded-lg text-xs font-semibold text-on-surface-variant hover:bg-surface-container transition-colors flex items-center justify-center gap-1"
+                  >
                     <Phone className="w-3 h-3" /> Call Customer
-                  </button>
+                  </a>
                   <button className="py-2 px-3 border border-outline-variant rounded-lg text-xs font-semibold text-on-surface-variant hover:bg-surface-container transition-colors">
                     <MapPin className="w-3.5 h-3.5" />
                   </button>
@@ -172,9 +185,13 @@ export const PartnerDashboardScreen: React.FC<PartnerDashboardScreenProps> = () 
                 <div className="flex-1">
                   <p className="text-sm font-semibold text-on-surface">{selectedOrder.user_id.split('-')[0]}</p>
                 </div>
-                <button className="p-2 bg-primary/10 rounded-full text-primary">
+                <a 
+                  href={selectedOrder.address_snapshot?.phone ? `tel:${selectedOrder.address_snapshot.phone}` : '#'}
+                  onClick={(e) => { if (!selectedOrder.address_snapshot?.phone) e.preventDefault(); }}
+                  className="p-2 bg-primary/10 rounded-full text-primary"
+                >
                   <Phone className="w-4 h-4" />
-                </button>
+                </a>
               </div>
               {selectedOrder.address_snapshot && (
                 <div className="text-xs text-on-surface-variant flex items-start gap-2">
@@ -192,8 +209,8 @@ export const PartnerDashboardScreen: React.FC<PartnerDashboardScreenProps> = () 
               <div className="flex flex-col gap-2">
                 {Array.isArray(selectedOrder.items) && selectedOrder.items.map((item: any, i: number) => (
                   <div key={i} className="flex justify-between text-sm">
-                    <span className="text-on-surface">{item.name || item.medicine_name} x{item.quantity}</span>
-                    <span className="text-on-surface font-medium">₹{((item.price || 0) * (item.quantity || 1)).toLocaleString('en-IN')}</span>
+                    <span className="text-on-surface">{item.product_snapshot?.name || item.name} x{item.quantity}</span>
+                    <span className="text-on-surface font-medium">₹{((item.unit_price || item.price || 0) * (item.quantity || 1)).toLocaleString('en-IN')}</span>
                   </div>
                 ))}
               </div>

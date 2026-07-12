@@ -19,14 +19,17 @@ interface UserProfile {
 interface UserOrder {
   id: string;
   created_at: string;
-  total_amount: number;
+  total: number;
+  total: number;
   status: string;
+  user_id: string;
 }
 
 export const UsersScreen: React.FC<UsersScreenProps> = () => {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
   const [userOrders, setUserOrders] = useState<UserOrder[]>([]);
+  const [partners, setPartners] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'orders' | 'prescriptions' | 'activity'>('orders');
@@ -37,6 +40,9 @@ export const UsersScreen: React.FC<UsersScreenProps> = () => {
 
   const loadUsers = async () => {
     setLoading(true);
+    const { data: partnersData } = await supabase.from('partners').select('id, email, name');
+    setPartners(partnersData || []);
+
     const { data, error } = await supabase.rpc('get_admin_users_with_email');
     if (error) {
       console.error('Failed to load users:', error);
@@ -44,19 +50,28 @@ export const UsersScreen: React.FC<UsersScreenProps> = () => {
     } else {
       setUsers(data || []);
       if (data && data.length > 0) {
-        selectUser(data[0]);
+        selectUser(data[0], partnersData || []);
       }
     }
     setLoading(false);
   };
 
-  const selectUser = async (user: UserProfile) => {
+  const selectUser = async (user: UserProfile, currentPartners: any[] = partners) => {
     setSelectedUser(user);
-    const { data: orders } = await supabase
+    const partnerInfo = currentPartners.find(p => p.email === user.email);
+    
+    let ordersQuery = supabase
       .from('orders')
-      .select('id, created_at, total_amount, status')
-      .eq('user_id', user.id)
+      .select('id, created_at, total, status, user_id')
       .order('created_at', { ascending: false });
+
+    if (partnerInfo) {
+      ordersQuery = ordersQuery.eq('assigned_partner_id', partnerInfo.id);
+    } else {
+      ordersQuery = ordersQuery.eq('user_id', user.id);
+    }
+    
+    const { data: orders } = await ordersQuery;
     setUserOrders(orders || []);
   };
 
@@ -85,7 +100,9 @@ export const UsersScreen: React.FC<UsersScreenProps> = () => {
       )
     : users;
 
-  const totalSpent = userOrders.reduce((sum, o) => sum + (o.total_amount || 0), 0);
+  const totalSpent = userOrders.reduce((sum, o) => sum + (o.total || 0), 0);
+  const isSelectedPartner = selectedUser ? partners.find(p => p.email === selectedUser.email) : false;
+  const uniqueCustomers = new Set(userOrders.map(o => o.user_id)).size;
 
   return (
     <div className="flex-1 p-6 flex flex-col gap-6 w-full max-w-[1440px] mx-auto">
@@ -136,11 +153,15 @@ export const UsersScreen: React.FC<UsersScreenProps> = () => {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-semibold text-on-surface truncate">{user.name || 'Unknown'}</span>
-                    {user.member_tier && user.member_tier !== 'standard' && (
+                    {partners.find(p => p.email === user.email) ? (
+                      <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full capitalize bg-secondary text-on-secondary">
+                        Partner
+                      </span>
+                    ) : user.member_tier && user.member_tier !== 'standard' ? (
                       <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full capitalize ${getTierBadge(user.member_tier)}`}>
                         {user.member_tier}
                       </span>
-                    )}
+                    ) : null}
                   </div>
                   <p className="text-xs text-on-surface-variant truncate">{user.email}</p>
                 </div>
@@ -178,11 +199,15 @@ export const UsersScreen: React.FC<UsersScreenProps> = () => {
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-1">
                   <h3 className="text-2xl font-semibold text-on-surface">{selectedUser.name || 'Unknown'}</h3>
-                  {selectedUser.member_tier && selectedUser.member_tier !== 'standard' && (
+                  {isSelectedPartner ? (
+                    <span className="text-xs font-semibold px-2 py-1 rounded-full capitalize bg-secondary text-on-secondary">
+                      Delivery Partner
+                    </span>
+                  ) : selectedUser.member_tier && selectedUser.member_tier !== 'standard' ? (
                     <span className={`text-xs font-semibold px-2 py-1 rounded-full capitalize ${getTierBadge(selectedUser.member_tier)}`}>
                       {selectedUser.member_tier} Member
                     </span>
-                  )}
+                  ) : null}
                 </div>
                 <div className="flex flex-col gap-1 text-sm text-on-surface-variant">
                   <span className="flex items-center gap-2"><Mail className="w-3.5 h-3.5" /> {selectedUser.email}</span>
@@ -192,10 +217,23 @@ export const UsersScreen: React.FC<UsersScreenProps> = () => {
                   </span>
                 </div>
               </div>
-              <div className="text-right">
-                <p className="text-[10px] text-on-surface-variant uppercase tracking-wider font-semibold">Total Spent</p>
-                <p className="text-xl font-bold text-on-surface">₹{totalSpent.toLocaleString('en-IN')}</p>
-              </div>
+              {isSelectedPartner ? (
+                <div className="flex gap-6">
+                  <div className="text-right">
+                    <p className="text-[10px] text-on-surface-variant uppercase tracking-wider font-semibold">Customers Served</p>
+                    <p className="text-xl font-bold text-on-surface">{uniqueCustomers}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[10px] text-on-surface-variant uppercase tracking-wider font-semibold">Total Sale</p>
+                    <p className="text-xl font-bold text-on-surface">₹{totalSpent.toLocaleString('en-IN')}</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-right">
+                  <p className="text-[10px] text-on-surface-variant uppercase tracking-wider font-semibold">Total Spent</p>
+                  <p className="text-xl font-bold text-on-surface">₹{totalSpent.toLocaleString('en-IN')}</p>
+                </div>
+              )}
             </div>
 
             {/* Tabs */}
@@ -211,7 +249,7 @@ export const UsersScreen: React.FC<UsersScreenProps> = () => {
                         : 'text-on-surface-variant hover:text-on-surface'
                     }`}
                   >
-                    {tab === 'orders' ? 'Order History' : tab === 'prescriptions' ? 'Saved Prescriptions' : 'Activity Log'}
+                    {tab === 'orders' ? (isSelectedPartner ? 'Assigned Orders' : 'Order History') : tab === 'prescriptions' ? 'Saved Prescriptions' : 'Activity Log'}
                   </button>
                 ))}
               </div>
@@ -246,7 +284,7 @@ export const UsersScreen: React.FC<UsersScreenProps> = () => {
                             </span>
                           </td>
                           <td className="py-3 px-4 text-sm font-medium text-on-surface text-right">
-                            ₹{(order.total_amount || 0).toLocaleString('en-IN')}
+                            ₹{(order.total || 0).toLocaleString('en-IN')}
                           </td>
                         </tr>
                       ))
