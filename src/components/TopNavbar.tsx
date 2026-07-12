@@ -8,7 +8,7 @@ interface TopNavbarProps {
   onToggleMobileSidebar?: () => void;
 }
 
-export const TopNavbar: React.FC<TopNavbarProps> = ({ currentRoute, onNavigate, onToggleMobileSidebar }) => {
+export const TopNavbar: React.FC<TopNavbarProps> = ({ onToggleMobileSidebar }) => {
   const { adminProfile, partnerProfile, role, signOut } = useAuth();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
 
