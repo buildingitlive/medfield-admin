@@ -184,7 +184,7 @@ export const BannersScreen: React.FC<BannersScreenProps> = () => {
                 <div>
                   <label className="text-xs font-semibold text-on-surface-variant mb-1 block">Background Color</label>
                   <div className="flex items-center gap-2">
-                    <input type="color" value={form.bg_color} onChange={(e) => setForm({ ...form, bg_color: e.target.value })} className="w-10 h-10 rounded-lg border border-outline-variant cursor-pointer" />
+                    <input type="color" value={form.bg_color} onChange={(e) => setForm({ ...form, bg_color: e.target.value })} className="w-[42px] h-[42px] p-1 rounded-lg border border-outline-variant bg-surface-container-low cursor-pointer shrink-0" />
                     <input value={form.bg_color} onChange={(e) => setForm({ ...form, bg_color: e.target.value })} className="flex-1 px-4 py-2.5 bg-surface-container-low border border-outline-variant rounded-lg text-sm focus:outline-none focus:border-primary" />
                   </div>
                 </div>
