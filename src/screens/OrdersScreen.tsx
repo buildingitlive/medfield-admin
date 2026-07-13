@@ -517,15 +517,7 @@ export const OrdersScreen: React.FC<OrdersScreenProps> = () => {
               {/* Payment Summary */}
               <div className="bg-surface-container-low/30 p-4 rounded-xl border border-outline-variant/30">
                 <h3 className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-4">Payment Summary</h3>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between text-on-surface-variant">
-                    <span>Subtotal</span>
-                    <span>{formatCurrency(detailsModal.total - (detailsModal.delivery_fee || 0))}</span>
-                  </div>
-                  <div className="flex justify-between text-on-surface-variant">
-                    <span>Delivery Fee</span>
-                    <span>{formatCurrency(detailsModal.delivery_fee || 0)}</span>
-                  </div>
+                  <div className="space-y-2 text-sm">
                   <div className="pt-3 mt-3 border-t border-outline-variant/30 flex justify-between font-semibold text-lg text-on-surface">
                     <span>Total</span>
                     <span className="text-primary">{formatCurrency(detailsModal.total)}</span>

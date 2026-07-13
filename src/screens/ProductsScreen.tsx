@@ -105,7 +105,7 @@ export const ProductsScreen: React.FC<ProductsScreenProps> = () => {
 
   const handleSave = async () => {
     setSaving(true);
-    const payload = { ...form, image_url: form.image_url || null, price: Number(form.price), mrp: Number(form.mrp), grower_purity_score: Number(form.grower_purity_score) };
+    const payload = { ...form, price: Number(form.price), mrp: Number(form.mrp), grower_purity_score: Number(form.grower_purity_score) };
     if (editId) {
       await supabase.from('products').update(payload).eq('id', editId);
     } else {

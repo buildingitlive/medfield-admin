@@ -12,6 +12,7 @@ interface DashboardScreenProps {
 interface RecentOrder {
   id: string;
   created_at: string;
+  updated_at?: string;
   total: number;
   status: string;
   user_id: string;
@@ -67,7 +68,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
     // Get orders — fetch ALL orders (we filter by updated_at for delivered, created_at for others)
     const { data: allOrders } = await (supabase
       .from('orders')
-      .select('id, created_at, total, status, user_id, assigned_partner_id, partners(margin_share)')
+      .select('id, created_at, updated_at, total, status, user_id, assigned_partner_id, partners(margin_share)')
       .order('created_at', { ascending: false }) as unknown as Promise<{ data: RecentOrder[] | null; error: any }>);
 
     // Get profiles
@@ -86,9 +87,9 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
     const currentOrders = orders.filter(o => new Date(o.created_at) >= currentStart);
     const previousOrders = orders.filter(o => new Date(o.created_at) >= previousStart && new Date(o.created_at) < currentStart);
 
-    // For sales/revenue: use created_at (since user requested not to track delivery times)
+    // For sales/revenue: use updated_at (which records when the order was marked as Delivered)
     const deliveredOrders = orders.filter(o => o.status === 'Delivered' || o.status === 'delivered');
-    const getDeliveryDate = (o: RecentOrder) => new Date(o.created_at);
+    const getDeliveryDate = (o: RecentOrder) => new Date(o.updated_at || o.created_at);
     const currentDelivered = deliveredOrders.filter(o => getDeliveryDate(o) >= currentStart);
     const previousDelivered = deliveredOrders.filter(o => getDeliveryDate(o) >= previousStart && getDeliveryDate(o) < currentStart);
 
