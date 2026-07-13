@@ -35,6 +35,13 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
     loadDashboardData();
   }, [dateFilter]);
 
+  // Listen for global refresh
+  useEffect(() => {
+    const handler = () => loadDashboardData();
+    window.addEventListener('admin-refresh', handler);
+    return () => window.removeEventListener('admin-refresh', handler);
+  }, []);
+
   const loadDashboardData = async () => {
     setLoading(true);
 
@@ -57,47 +64,44 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
       previousStart.setMonth(now.getMonth() - 24);
     }
 
-    // Get orders
-    const { data: allOrders, error: orderError } = await (supabase
+    // Get orders — fetch ALL orders (we filter by updated_at for delivered, created_at for others)
+    const { data: allOrders } = await (supabase
       .from('orders')
       .select('id, created_at, total, status, user_id, assigned_partner_id, partners(margin_share)')
-      .gte('created_at', previousStart.toISOString())
       .order('created_at', { ascending: false }) as unknown as Promise<{ data: RecentOrder[] | null; error: any }>);
 
     // Get profiles
-    const { data: allProfiles, error: profileError } = await supabase
+    const { data: allProfiles } = await supabase
       .from('profiles')
-      .select('created_at')
-      .gte('created_at', previousStart.toISOString());
+      .select('created_at');
 
     // Get partners
-    const { data: allPartners, error: partnerError } = await supabase
+    const { data: allPartners } = await supabase
       .from('partners')
-      .select('created_at, is_active')
-      .gte('created_at', previousStart.toISOString());
-
-    console.log("Dashboard Debug:");
-    console.log("Orders:", allOrders, "Error:", orderError);
-    console.log("Profiles:", allProfiles, "Error:", profileError);
-    console.log("Partners:", allPartners, "Error:", partnerError);
+      .select('created_at, is_active');
 
     const orders = allOrders || [];
+
+    // For general order count: use created_at
     const currentOrders = orders.filter(o => new Date(o.created_at) >= currentStart);
     const previousOrders = orders.filter(o => new Date(o.created_at) >= previousStart && new Date(o.created_at) < currentStart);
+
+    // For sales/revenue: use created_at (since user requested not to track delivery times)
+    const deliveredOrders = orders.filter(o => o.status === 'Delivered' || o.status === 'delivered');
+    const getDeliveryDate = (o: RecentOrder) => new Date(o.created_at);
+    const currentDelivered = deliveredOrders.filter(o => getDeliveryDate(o) >= currentStart);
+    const previousDelivered = deliveredOrders.filter(o => getDeliveryDate(o) >= previousStart && getDeliveryDate(o) < currentStart);
 
     const profiles = allProfiles || [];
     const currentProfiles = profiles.filter(p => new Date(p.created_at) >= currentStart);
     const previousProfiles = profiles.filter(p => new Date(p.created_at) >= previousStart && new Date(p.created_at) < currentStart);
 
     const partnersData = allPartners || [];
-    const currentPartners = partnersData.filter(p => new Date(p.created_at) >= currentStart && p.is_active);
+    const currentPartners = partnersData.filter(p => p.is_active);
     const previousPartners = partnersData.filter(p => new Date(p.created_at) >= previousStart && new Date(p.created_at) < currentStart && p.is_active);
 
-    const calcSales = (arr: any[]) => arr
-      .filter(o => o.status === 'Delivered' || o.status === 'delivered')
-      .reduce((sum, o) => sum + (o.total || 0), 0);
-    const currentSales = calcSales(currentOrders);
-    const previousSales = calcSales(previousOrders);
+    const currentSales = currentDelivered.reduce((sum, o) => sum + (o.total || 0), 0);
+    const previousSales = previousDelivered.reduce((sum, o) => sum + (o.total || 0), 0);
 
     const calculateChange = (current: number, previous: number) => {
       if (previous === 0) return current > 0 ? { change: '+100%', up: true } : { change: '0.0%', up: true };
@@ -116,14 +120,13 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
     });
 
     // Generate dynamic chart data based on Revenue (margin_share of delivered orders)
-    const chartOrders = currentOrders.filter(o => o.status === 'Delivered' || o.status === 'delivered');
     let groupedData: Record<string, number> = {};
 
-    chartOrders.forEach(o => {
+    currentDelivered.forEach(o => {
       const p = Array.isArray(o.partners) ? o.partners[0] : o.partners;
       const margin = p?.margin_share || 0;
       const rev = (o.total || 0) * (margin / 100);
-      const d = new Date(o.created_at);
+      const d = getDeliveryDate(o);
       let key = '';
       if (dateFilter === 'today') key = d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
       else if (dateFilter === '12m') key = d.toLocaleDateString('en-IN', { month: 'short' });
@@ -175,7 +178,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
   };
 
   return (
-    <div className="flex-1 p-6 flex flex-col gap-8 w-full max-w-[1440px] mx-auto">
+    <div className="flex-1 p-4 sm:p-6 flex flex-col gap-8 w-full max-w-[1440px] mx-auto">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h2 className="text-[32px] leading-[40px] font-semibold text-on-surface">Dashboard</h2>
@@ -220,7 +223,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
       {/* Chart + Recent Orders */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Revenue Chart */}
-        <div className="lg:col-span-2 bg-surface-container-lowest rounded-xl shadow-sm border border-outline-variant/30 p-6 flex flex-col">
+        <div className="lg:col-span-2 bg-surface-container-lowest rounded-xl shadow-sm border border-outline-variant/30 p-4 sm:p-6 flex flex-col">
           <div className="flex justify-between items-center mb-6">
             <h3 className="text-xl font-semibold text-on-surface">Revenue Overview</h3>
           </div>
@@ -234,8 +237,8 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#c0c9bb" strokeOpacity={0.3} />
-                <XAxis dataKey="label" tick={{ fontSize: 12, fill: '#717a6d' }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 12, fill: '#717a6d' }} axisLine={false} tickLine={false} width={80} tickFormatter={(v) => `₹${v}`} />
+                <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#717a6d' }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 10, fill: '#717a6d' }} axisLine={false} tickLine={false} width={45} tickFormatter={(v) => `₹${v}`} />
                 <Tooltip
                   contentStyle={{
                     background: '#ffffff',
@@ -260,7 +263,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-xl font-semibold text-on-surface">Recent Orders</h3>
           <button
-            onClick={() => onNavigate('/admin/orders')}
+            onClick={() => onNavigate('/orders')}
             className="text-xs font-semibold text-primary hover:underline"
           >
             View All

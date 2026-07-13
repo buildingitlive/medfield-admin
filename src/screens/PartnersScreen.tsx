@@ -25,6 +25,7 @@ const defaultForm = { name: '', email: '', phone: '', region: 'city_north', city
 
 export const PartnersScreen: React.FC<PartnersScreenProps> = () => {
   const [partners, setPartners] = useState<Partner[]>([]);
+  const [todayOrders, setTodayOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
@@ -34,9 +35,31 @@ export const PartnersScreen: React.FC<PartnersScreenProps> = () => {
 
   useEffect(() => { loadPartners(); }, []);
 
+  // Listen for global refresh
+  useEffect(() => {
+    const handler = () => loadPartners();
+    window.addEventListener('admin-refresh', handler);
+    return () => window.removeEventListener('admin-refresh', handler);
+  }, []);
+
   const loadPartners = async () => {
     setLoading(true);
     const { data } = await supabase.from('partners').select('*').order('created_at', { ascending: false });
+
+    // Fetch today's delivered orders
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    const { data: ordersData } = await supabase
+      .from('orders')
+      .select('id, created_at, total, status, user_id, assigned_partner_id')
+      .eq('status', 'Delivered');
+
+    const deliveredOrders = (ordersData || []).filter(o => {
+        const d = new Date(o.created_at);
+        return d >= today;
+    });
+
+    setTodayOrders(deliveredOrders);
     setPartners(data || []);
     setLoading(false);
   };
@@ -170,7 +193,55 @@ export const PartnersScreen: React.FC<PartnersScreenProps> = () => {
                 </div>
               </div>
 
-              <div className="flex items-center justify-between pt-3 border-t border-outline-variant/20">
+              {(() => {
+                const pOrders = todayOrders.filter(o => o.assigned_partner_id === partner.id);
+                const tSale = pOrders.reduce((sum, o) => sum + (o.total || 0), 0);
+                const tRevenue = tSale * ((partner.margin_share || 0) / 100);
+                
+                return (
+                  <>
+                    <div className="grid grid-cols-3 gap-2 pt-3 border-t border-outline-variant/20 mt-1">
+                      <div className="flex flex-col">
+                        <span className="text-[10px] text-on-surface-variant uppercase tracking-wider">Sale (Today)</span>
+                        <span className="font-semibold text-sm">₹{tSale}</span>
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-[10px] text-on-surface-variant uppercase tracking-wider">Revenue</span>
+                        <span className="font-semibold text-sm text-secondary">₹{tRevenue.toFixed(2)}</span>
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-[10px] text-on-surface-variant uppercase tracking-wider">Orders</span>
+                        <span className="font-semibold text-sm">{pOrders.length}</span>
+                      </div>
+                    </div>
+
+                    {pOrders.length > 0 && (
+                      <div className="mt-1 max-h-32 overflow-y-auto rounded bg-surface-container border border-outline-variant/30 scrollbar-hide">
+                        <table className="w-full text-left text-[10px]">
+                          <thead className="bg-surface-container-high sticky top-0 z-10">
+                            <tr>
+                              <th className="px-2 py-1.5 font-semibold text-on-surface-variant">Order ID</th>
+                              <th className="px-2 py-1.5 font-semibold text-on-surface-variant">Customer</th>
+                              <th className="px-2 py-1.5 font-semibold text-on-surface-variant text-right">Amount</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-outline-variant/20">
+                            {pOrders.map(o => (
+                              <tr key={o.id} className="hover:bg-surface-container-high transition-colors">
+                                <td className="px-2 py-1.5 text-primary font-mono">{o.id.split('-')[0]}</td>
+                                <td className="px-2 py-1.5 text-on-surface-variant truncate max-w-[80px]">{o.user_id.split('-')[0]}</td>
+                                <td className="px-2 py-1.5 font-semibold text-right">₹{o.total}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
+
+              <div className="flex items-center justify-between pt-3 border-t border-outline-variant/20 mt-auto">
                 <span className="text-xs text-on-surface-variant">
                   Joined {new Date(partner.created_at).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' })}
                 </span>

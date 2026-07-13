@@ -58,6 +58,13 @@ export const OrdersScreen: React.FC<OrdersScreenProps> = () => {
     loadPartners();
   }, [page, statusFilter, assignmentFilter, sortField, sortDirection]);
 
+  // Listen for global refresh
+  useEffect(() => {
+    const handler = () => { loadOrders(); loadPartners(); };
+    window.addEventListener('admin-refresh', handler);
+    return () => window.removeEventListener('admin-refresh', handler);
+  }, []);
+
   // Reset selection when page changes to avoid confusion
   useEffect(() => {
     setSelectedOrders([]);

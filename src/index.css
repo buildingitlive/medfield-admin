@@ -81,6 +81,7 @@
     font-family: var(--font-sans);
     background-color: var(--color-surface);
     color: var(--color-on-surface);
+    overflow-x: hidden;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }

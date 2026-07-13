@@ -5,22 +5,23 @@ import { useAuth } from '../contexts/AuthContext';
 interface SidebarProps {
   currentRoute: string;
   onNavigate: (route: string) => void;
+  isMobile?: boolean;
 }
 
 const navItems = [
-  { label: 'Dashboard', route: '/admin/dashboard', icon: LayoutDashboard },
-  { label: 'Orders', route: '/admin/orders', icon: ShoppingCart },
-  { label: 'Users', route: '/admin/users', icon: Users },
-  { label: 'Products', route: '/admin/products', icon: Package },
-  { label: 'Banners', route: '/admin/banners', icon: Image },
-  { label: 'Partners', route: '/admin/partners', icon: Handshake },
+  { label: 'Dashboard', route: '/dashboard', icon: LayoutDashboard },
+  { label: 'Orders', route: '/orders', icon: ShoppingCart },
+  { label: 'Users', route: '/users', icon: Users },
+  { label: 'Products', route: '/products', icon: Package },
+  { label: 'Banners', route: '/banners', icon: Image },
+  { label: 'Partners', route: '/partners', icon: Handshake },
 ];
 
-export const Sidebar: React.FC<SidebarProps> = ({ currentRoute, onNavigate }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ currentRoute, onNavigate, isMobile }) => {
   const { adminProfile, signOut } = useAuth();
 
   return (
-    <nav className="hidden md:flex flex-col w-[260px] h-screen fixed left-0 top-0 bg-inverse-surface text-inverse-on-surface z-50">
+    <nav className={`${isMobile ? 'flex' : 'hidden md:flex'} flex-col w-[260px] h-screen ${isMobile ? '' : 'fixed left-0 top-0'} bg-inverse-surface text-inverse-on-surface z-50`}>
       {/* Brand */}
       <div className="p-6 pb-4">
         <h1 className="text-lg font-bold text-white tracking-tight">MedField Admin</h1>
@@ -73,7 +74,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentRoute, onNavigate }) =>
       {/* Footer */}
       <div className="px-2 py-4 flex flex-col gap-0.5 border-t border-tertiary-container/50">
         <button
-          onClick={() => onNavigate('/admin/settings')}
+          onClick={() => onNavigate('/settings')}
           className="flex items-center gap-3 w-full px-4 py-2.5 rounded-lg text-xs font-semibold text-on-tertiary-container hover:bg-tertiary-container/50 transition-colors"
         >
           <Settings className="w-[18px] h-[18px]" />

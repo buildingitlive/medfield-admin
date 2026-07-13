@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Filter, Mail, Phone, Calendar } from 'lucide-react';
+import { Search, Filter, Mail, Phone, Calendar, ArrowLeft } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 interface UsersScreenProps {
@@ -33,6 +33,13 @@ export const UsersScreen: React.FC<UsersScreenProps> = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'orders' | 'prescriptions' | 'activity'>('orders');
 
+  // Listen for global refresh
+  useEffect(() => {
+    const handler = () => loadUsers();
+    window.addEventListener('admin-refresh', handler);
+    return () => window.removeEventListener('admin-refresh', handler);
+  }, []);
+
   useEffect(() => {
     loadUsers();
   }, []);
@@ -55,8 +62,12 @@ export const UsersScreen: React.FC<UsersScreenProps> = () => {
     setLoading(false);
   };
 
-  const selectUser = async (user: UserProfile, currentPartners: any[] = partners) => {
+  const selectUser = async (user: UserProfile | null, currentPartners: any[] = partners) => {
     setSelectedUser(user);
+    if (!user) {
+      setUserOrders([]);
+      return;
+    }
     const partnerInfo = currentPartners.find(p => p.email === user.email);
     
     let ordersQuery = supabase
@@ -110,8 +121,8 @@ export const UsersScreen: React.FC<UsersScreenProps> = () => {
         <h2 className="text-[32px] leading-[40px] font-semibold text-on-surface">
           Users <span className="text-lg font-normal text-on-surface-variant">({users.length} total)</span>
         </h2>
-        <div className="flex items-center gap-3">
-          <div className="relative w-64">
+        <div className="flex w-full sm:w-auto items-center gap-3">
+          <div className="relative flex-1 sm:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-outline" />
             <input
               type="text"
@@ -121,16 +132,16 @@ export const UsersScreen: React.FC<UsersScreenProps> = () => {
               className="w-full pl-10 pr-4 py-2.5 bg-surface-container-low border border-outline-variant rounded-full text-sm focus:outline-none focus:border-primary"
             />
           </div>
-          <button className="px-4 py-2.5 bg-primary text-on-primary rounded-lg text-xs font-semibold flex items-center gap-2 hover:bg-primary-container transition-colors">
+          <button className="px-4 py-2.5 bg-primary text-on-primary rounded-lg text-xs font-semibold flex items-center justify-center gap-2 hover:bg-primary-container transition-colors shrink-0">
             <Filter className="w-3.5 h-3.5" /> Filter
           </button>
         </div>
       </div>
 
       {/* Split Layout */}
-      <div className="flex gap-6 flex-1 min-h-0">
+      <div className="flex flex-col lg:flex-row gap-6 flex-1 min-h-0">
         {/* Users List */}
-        <div className="w-full md:w-[380px] flex-shrink-0 bg-surface-container-lowest rounded-xl shadow-sm border border-outline-variant/30 overflow-y-auto max-h-[calc(100vh-200px)]">
+        <div className={`w-full lg:w-[380px] flex-shrink-0 bg-surface-container-lowest rounded-xl shadow-sm border border-outline-variant/30 overflow-y-auto max-h-[calc(100vh-200px)] ${selectedUser ? 'hidden lg:block' : 'block'}`}>
           {loading ? (
             <div className="p-8 text-center text-on-surface-variant">Loading users...</div>
           ) : filteredUsers.length === 0 ? (
@@ -174,11 +185,14 @@ export const UsersScreen: React.FC<UsersScreenProps> = () => {
 
         {/* User Detail */}
         {selectedUser ? (
-          <div className="flex-1 flex flex-col gap-6 min-w-0">
+          <div className={`flex-1 flex flex-col gap-6 min-w-0 ${selectedUser ? 'block' : 'hidden lg:flex'}`}>
             {/* Breadcrumb + Actions */}
-            <div className="flex items-center justify-between">
-              <div className="text-sm text-on-surface-variant">
-                Users &gt; <span className="text-on-surface font-medium">{selectedUser.name}</span>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-2 text-sm text-on-surface-variant">
+                <button onClick={() => selectUser(null)} className="lg:hidden p-1.5 hover:bg-surface-container rounded-md">
+                  <ArrowLeft className="w-4 h-4" />
+                </button>
+                <span className="hidden sm:inline">Users &gt;</span> <span className="text-on-surface font-medium truncate max-w-[200px]">{selectedUser.name}</span>
               </div>
               <div className="flex gap-2">
                 <button className="px-4 py-2 border border-outline-variant rounded-lg text-xs font-semibold text-on-surface-variant hover:bg-surface-container transition-colors">
@@ -191,13 +205,13 @@ export const UsersScreen: React.FC<UsersScreenProps> = () => {
             </div>
 
             {/* Profile Card */}
-            <div className="bg-surface-container-low/50 border border-outline-variant/30 rounded-xl p-6 flex items-center gap-6">
+            <div className="bg-surface-container-low/50 border border-outline-variant/30 rounded-xl p-4 sm:p-6 flex flex-col sm:flex-row sm:items-center items-start gap-4 sm:gap-6">
               <div className="w-16 h-16 rounded-full bg-primary-container text-on-primary-container font-bold text-xl flex items-center justify-center flex-shrink-0">
                 {getInitials(selectedUser.name)}
               </div>
-              <div className="flex-1">
-                <div className="flex items-center gap-3 mb-1">
-                  <h3 className="text-2xl font-semibold text-on-surface">{selectedUser.name || 'Unknown'}</h3>
+              <div className="flex-1 min-w-0 w-full">
+                <div className="flex flex-wrap items-center gap-2 mb-1">
+                  <h3 className="text-xl sm:text-2xl font-semibold text-on-surface truncate">{selectedUser.name || 'Unknown'}</h3>
                   {isSelectedPartner ? (
                     <span className="text-xs font-semibold px-2 py-1 rounded-full capitalize bg-secondary text-on-secondary">
                       Delivery Partner
@@ -217,18 +231,18 @@ export const UsersScreen: React.FC<UsersScreenProps> = () => {
                 </div>
               </div>
               {isSelectedPartner ? (
-                <div className="flex gap-6">
-                  <div className="text-right">
+                <div className="flex gap-6 w-full sm:w-auto mt-2 sm:mt-0 pt-4 sm:pt-0 border-t sm:border-0 border-outline-variant/20">
+                  <div className="text-left sm:text-right">
                     <p className="text-[10px] text-on-surface-variant uppercase tracking-wider font-semibold">Customers Served</p>
                     <p className="text-xl font-bold text-on-surface">{uniqueCustomers}</p>
                   </div>
-                  <div className="text-right">
+                  <div className="text-left sm:text-right">
                     <p className="text-[10px] text-on-surface-variant uppercase tracking-wider font-semibold">Total Sale</p>
                     <p className="text-xl font-bold text-on-surface">₹{totalSpent.toLocaleString('en-IN')}</p>
                   </div>
                 </div>
               ) : (
-                <div className="text-right">
+                <div className="text-left sm:text-right w-full sm:w-auto mt-2 sm:mt-0 pt-4 sm:pt-0 border-t sm:border-0 border-outline-variant/20">
                   <p className="text-[10px] text-on-surface-variant uppercase tracking-wider font-semibold">Total Spent</p>
                   <p className="text-xl font-bold text-on-surface">₹{totalSpent.toLocaleString('en-IN')}</p>
                 </div>

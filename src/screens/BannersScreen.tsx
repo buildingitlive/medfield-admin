@@ -33,6 +33,13 @@ export const BannersScreen: React.FC<BannersScreenProps> = () => {
 
   useEffect(() => { loadBanners(); }, []);
 
+  // Listen for global refresh
+  useEffect(() => {
+    const handler = () => loadBanners();
+    window.addEventListener('admin-refresh', handler);
+    return () => window.removeEventListener('admin-refresh', handler);
+  }, []);
+
   const loadBanners = async () => {
     setLoading(true);
     const { data } = await supabase.from('banners').select('*').order('position');
@@ -106,39 +113,41 @@ export const BannersScreen: React.FC<BannersScreenProps> = () => {
           banners.map((banner) => (
             <div
               key={banner.id}
-              className="bg-surface-container-lowest rounded-xl shadow-sm border border-outline-variant/30 p-5 flex items-center gap-5 hover:shadow-md transition-shadow"
+              className="bg-surface-container-lowest rounded-xl shadow-sm border border-outline-variant/30 p-4 flex flex-col sm:flex-row sm:items-center gap-4 hover:shadow-md transition-shadow"
             >
-              {/* Drag Handle */}
-              <GripVertical className="w-5 h-5 text-outline-variant cursor-grab flex-shrink-0" />
+              <div className="flex items-center gap-3 w-full sm:w-auto flex-1 min-w-0">
+                {/* Drag Handle */}
+                <GripVertical className="w-5 h-5 text-outline-variant cursor-grab flex-shrink-0" />
 
-              {/* Thumbnail */}
-              <div
-                className="w-24 h-16 rounded-lg flex-shrink-0 overflow-hidden flex items-center justify-center border border-outline-variant/20"
-                style={{ backgroundColor: banner.bg_color || '#e5eeff' }}
-              >
-                {banner.image_url ? (
-                  <img src={banner.image_url} alt={banner.title} className="w-full h-full object-cover" />
-                ) : (
-                  <span className="text-xs font-semibold text-on-surface-variant/50">{banner.title.split(' ')[0]}</span>
-                )}
-              </div>
-
-              {/* Info */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <h3 className="text-sm font-semibold text-on-surface">{banner.title}</h3>
-                  <span className={`text-[9px] font-semibold px-2 py-0.5 rounded-full uppercase tracking-wider ${
-                    banner.is_active ? 'bg-secondary-container/30 text-on-secondary-container' : 'bg-surface-variant text-on-surface-variant'
-                  }`}>
-                    {banner.is_active ? 'Active' : 'Scheduled'}
-                  </span>
+                {/* Thumbnail */}
+                <div
+                  className="w-16 h-12 sm:w-24 sm:h-16 rounded-lg flex-shrink-0 overflow-hidden flex items-center justify-center border border-outline-variant/20"
+                  style={{ backgroundColor: banner.bg_color || '#e5eeff' }}
+                >
+                  {banner.image_url ? (
+                    <img src={banner.image_url} alt={banner.title} className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="text-[10px] sm:text-xs font-semibold text-on-surface-variant/50">{banner.title.split(' ')[0]}</span>
+                  )}
                 </div>
-                <p className="text-xs text-on-surface-variant truncate">{banner.subtitle}</p>
+
+                {/* Info */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex flex-wrap items-center gap-2 mb-1">
+                    <h3 className="text-sm font-semibold text-on-surface truncate">{banner.title}</h3>
+                    <span className={`text-[9px] font-semibold px-2 py-0.5 rounded-full uppercase tracking-wider whitespace-nowrap ${
+                      banner.is_active ? 'bg-secondary-container/30 text-on-secondary-container' : 'bg-surface-variant text-on-surface-variant'
+                    }`}>
+                      {banner.is_active ? 'Active' : 'Scheduled'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-on-surface-variant truncate">{banner.subtitle}</p>
+                </div>
               </div>
 
               {/* Controls */}
-              <div className="flex items-center gap-4 flex-shrink-0">
-                <div className="flex flex-col items-center gap-1">
+              <div className="flex items-center justify-between sm:justify-end gap-4 w-full sm:w-auto flex-shrink-0 pt-3 sm:pt-0 border-t sm:border-0 border-outline-variant/20">
+                <div className="flex items-center gap-2">
                   <span className="text-[10px] text-on-surface-variant uppercase tracking-wider font-semibold">Status</span>
                   <button
                     onClick={() => toggleActive(banner.id, banner.is_active)}
@@ -147,12 +156,14 @@ export const BannersScreen: React.FC<BannersScreenProps> = () => {
                     <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${banner.is_active ? 'left-5.5 translate-x-0' : 'left-0.5'}`} />
                   </button>
                 </div>
-                <button onClick={() => openEdit(banner)} className="p-2 rounded-lg hover:bg-surface-container text-on-surface-variant transition-colors">
-                  <Edit2 className="w-4 h-4" />
-                </button>
-                <button onClick={() => handleDelete(banner.id)} className="p-2 rounded-lg hover:bg-error-container/50 text-on-surface-variant hover:text-error transition-colors">
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                <div className="flex items-center gap-1">
+                  <button onClick={() => openEdit(banner)} className="p-2 rounded-lg hover:bg-surface-container text-on-surface-variant transition-colors">
+                    <Edit2 className="w-4 h-4" />
+                  </button>
+                  <button onClick={() => handleDelete(banner.id)} className="p-2 rounded-lg hover:bg-error-container/50 text-on-surface-variant hover:text-error transition-colors">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             </div>
           ))
@@ -176,7 +187,7 @@ export const BannersScreen: React.FC<BannersScreenProps> = () => {
                 <label className="text-xs font-semibold text-on-surface-variant mb-1 block">Subtitle</label>
                 <input value={form.subtitle} onChange={(e) => setForm({ ...form, subtitle: e.target.value })} className="w-full px-4 py-2.5 bg-surface-container-low border border-outline-variant rounded-lg text-sm focus:outline-none focus:border-primary" />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs font-semibold text-on-surface-variant mb-1 block">Image URL</label>
                   <input value={form.image_url} onChange={(e) => setForm({ ...form, image_url: e.target.value })} placeholder="https://..." className="w-full px-4 py-2.5 bg-surface-container-low border border-outline-variant rounded-lg text-sm focus:outline-none focus:border-primary" />
@@ -185,7 +196,7 @@ export const BannersScreen: React.FC<BannersScreenProps> = () => {
                   <label className="text-xs font-semibold text-on-surface-variant mb-1 block">Background Color</label>
                   <div className="flex items-center gap-2">
                     <input type="color" value={form.bg_color} onChange={(e) => setForm({ ...form, bg_color: e.target.value })} className="w-[42px] h-[42px] p-1 rounded-lg border border-outline-variant bg-surface-container-low cursor-pointer shrink-0" />
-                    <input value={form.bg_color} onChange={(e) => setForm({ ...form, bg_color: e.target.value })} className="flex-1 px-4 py-2.5 bg-surface-container-low border border-outline-variant rounded-lg text-sm focus:outline-none focus:border-primary" />
+                    <input value={form.bg_color} onChange={(e) => setForm({ ...form, bg_color: e.target.value })} className="flex-1 min-w-0 px-4 py-2.5 bg-surface-container-low border border-outline-variant rounded-lg text-sm focus:outline-none focus:border-primary" />
                   </div>
                 </div>
               </div>

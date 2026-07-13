@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { Sidebar } from './components/Sidebar';
 import { TopNavbar } from './components/TopNavbar';
@@ -13,10 +13,33 @@ import { PartnerDashboardScreen } from './screens/PartnerDashboardScreen';
 import { Loader2 } from 'lucide-react';
 import './index.css';
 
+function getRoute(): string {
+  const path = window.location.pathname;
+  if (['/dashboard', '/orders', '/users', '/products', '/banners', '/partners', '/settings'].includes(path)) {
+    return path;
+  }
+  return '/dashboard';
+}
+
 function AppContent() {
   const { user, role, loading } = useAuth();
-  const [route, setRoute] = useState('/admin/dashboard');
+  const [route, setRouteState] = useState(getRoute);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
+  const navigate = useCallback((r: string) => {
+    setRouteState(r);
+    window.history.pushState({}, '', r);
+    setMobileSidebarOpen(false);
+  }, []);
+
+  // Handle browser back/forward
+  useEffect(() => {
+    const handlePopState = () => {
+      setRouteState(getRoute());
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   // Loading state
   if (loading) {
@@ -41,9 +64,9 @@ function AppContent() {
       <div className="min-h-screen bg-surface flex flex-col">
         <TopNavbar
           currentRoute={route}
-          onNavigate={setRoute}
+          onNavigate={navigate}
         />
-        <PartnerDashboardScreen onNavigate={setRoute} />
+        <PartnerDashboardScreen onNavigate={navigate} />
       </div>
     );
   }
@@ -51,43 +74,43 @@ function AppContent() {
   // Admin Portal
   const renderAdminScreen = () => {
     switch (route) {
-      case '/admin/dashboard':
-        return <DashboardScreen onNavigate={setRoute} />;
-      case '/admin/orders':
-        return <OrdersScreen onNavigate={setRoute} />;
-      case '/admin/users':
-        return <UsersScreen onNavigate={setRoute} />;
-      case '/admin/products':
-        return <ProductsScreen onNavigate={setRoute} />;
-      case '/admin/banners':
-        return <BannersScreen onNavigate={setRoute} />;
-      case '/admin/partners':
-        return <PartnersScreen onNavigate={setRoute} />;
+      case '/dashboard':
+        return <DashboardScreen onNavigate={navigate} />;
+      case '/orders':
+        return <OrdersScreen onNavigate={navigate} />;
+      case '/users':
+        return <UsersScreen onNavigate={navigate} />;
+      case '/products':
+        return <ProductsScreen onNavigate={navigate} />;
+      case '/banners':
+        return <BannersScreen onNavigate={navigate} />;
+      case '/partners':
+        return <PartnersScreen onNavigate={navigate} />;
       default:
-        return <DashboardScreen onNavigate={setRoute} />;
+        return <DashboardScreen onNavigate={navigate} />;
     }
   };
 
   return (
-    <div className="min-h-screen bg-surface flex">
-      {/* Sidebar */}
-      <Sidebar currentRoute={route} onNavigate={(r) => { setRoute(r); setMobileSidebarOpen(false); }} />
+    <div className="min-h-screen bg-surface overflow-x-hidden">
+      {/* Sidebar — desktop only */}
+      <Sidebar currentRoute={route} onNavigate={navigate} />
 
       {/* Mobile Sidebar Overlay */}
       {mobileSidebarOpen && (
         <div className="fixed inset-0 z-50 md:hidden">
           <div className="absolute inset-0 bg-black/40" onClick={() => setMobileSidebarOpen(false)} />
           <div className="absolute left-0 top-0 h-full w-[260px] bg-inverse-surface">
-            <Sidebar currentRoute={route} onNavigate={(r) => { setRoute(r); setMobileSidebarOpen(false); }} />
+            <Sidebar currentRoute={route} onNavigate={navigate} isMobile />
           </div>
         </div>
       )}
 
       {/* Main Area */}
-      <main className="flex-1 md:ml-[260px] flex flex-col min-w-0">
+      <main className="md:ml-[260px] flex flex-col min-h-screen min-w-0">
         <TopNavbar
           currentRoute={route}
-          onNavigate={setRoute}
+          onNavigate={navigate}
           onToggleMobileSidebar={() => setMobileSidebarOpen(o => !o)}
         />
         {renderAdminScreen()}
