@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, ShoppingCart, Users, Package, Image, Handshake, Settings, LogOut } from 'lucide-react';
+import { LayoutDashboard, ShoppingCart, Users, Package, Image, Handshake, Bell, Settings, LogOut } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 interface SidebarProps {
@@ -15,6 +15,7 @@ const navItems = [
   { label: 'Products', route: '/products', icon: Package },
   { label: 'Banners', route: '/banners', icon: Image },
   { label: 'Partners', route: '/partners', icon: Handshake },
+  { label: 'Notifications', route: '/notifications', icon: Bell },
 ];
 
 export const Sidebar: React.FC<SidebarProps> = ({ currentRoute, onNavigate, isMobile }) => {

@@ -27,3 +27,15 @@ The MedField Admin platform is a separate web application designed to manage the
 
 ## Design System
 The admin panel uses a slightly different design system than the main app, characterized by a dark navy sidebar (`#0b1c30`), `Inter` font for text, and `JetBrains Mono` for IDs and codes. All design tokens are defined in `src/index.css`.
+
+## Recent Updates
+- **Mobile Optimizations**: Enforced stacking (`flex-col`) on mobile viewports for modals, lists, and forms to eliminate overflow, and implemented `overflow-x-hidden` at the root to lock the width to the device viewport.
+- **Delivery Date Tracking**: Refactored the Dashboard order fetching logic to correctly attribute "Today's Revenue" by querying `updated_at` (the timestamp when an order transitions to `Delivered`) instead of `created_at`.
+- **UI Clean-up**: Stripped all mentions of `Delivery Fee` or `Subtotal` from the payment summaries in the Admin Orders and Partner dashboard, reflecting the new business rules where delivery fees are purely visual in the PWA.
+
+## Production Checklist
+- [x] Test complete end-to-end PWA flow and ensure admin panel instantly updates and catches new orders.
+- [x] Verify Supabase RLS policies are permissive enough to allow admin inserts to `products`, `banners`, and `partners`.
+- [x] Run `ALTER TABLE orders ADD COLUMN updated_at TIMESTAMP` in production DB and attach trigger to power the dashboard.
+- [x] Review layout sizing on real mobile devices (horizontal scroll locked).
+- [x] Confirm `npm run build` succeeds without TS warnings.

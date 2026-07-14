@@ -49,6 +49,30 @@ export const PartnerDashboardScreen: React.FC<PartnerDashboardScreenProps> = () 
   const markDelivered = async (orderId: string) => {
     setMarking(true);
     await supabase.from('orders').update({ status: 'Delivered' }).eq('id', orderId);
+    
+    // Emit notifications
+    const targetOrder = orders.find(o => o.id === orderId);
+    const shortId = orderId.split('-')[0];
+    await supabase.from('notifications').insert([
+      {
+        recipient_type: 'admin',
+        title: `Order #${shortId} Delivered`,
+        description: `Order successfully delivered by partner ${partnerProfile?.name || 'Partner'}.`,
+        type: 'order_delivered',
+        link: '/orders',
+        is_read: false
+      },
+      {
+        recipient_type: 'user',
+        recipient_id: targetOrder?.user_id || null,
+        title: 'Order Delivered 🎉',
+        description: `Your order #${shortId} has been delivered successfully. Thank you for choosing MedField!`,
+        type: 'order_delivered',
+        link: '/orders',
+        is_read: false
+      }
+    ]);
+
     setMarking(false);
     setSelectedOrder(null);
     loadOrders();

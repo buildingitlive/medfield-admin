@@ -9,13 +9,14 @@ import { UsersScreen } from './screens/UsersScreen';
 import { ProductsScreen } from './screens/ProductsScreen';
 import { BannersScreen } from './screens/BannersScreen';
 import { PartnersScreen } from './screens/PartnersScreen';
+import { PushNotificationsScreen } from './screens/PushNotificationsScreen';
 import { PartnerDashboardScreen } from './screens/PartnerDashboardScreen';
 import { Loader2 } from 'lucide-react';
 import './index.css';
 
 function getRoute(): string {
   const path = window.location.pathname;
-  if (['/dashboard', '/orders', '/users', '/products', '/banners', '/partners', '/settings'].includes(path)) {
+  if (['/dashboard', '/orders', '/users', '/products', '/banners', '/partners', '/notifications', '/settings'].includes(path)) {
     return path;
   }
   return '/dashboard';
@@ -86,6 +87,8 @@ function AppContent() {
         return <BannersScreen onNavigate={navigate} />;
       case '/partners':
         return <PartnersScreen onNavigate={navigate} />;
+      case '/notifications':
+        return <PushNotificationsScreen onNavigate={navigate} />;
       default:
         return <DashboardScreen onNavigate={navigate} />;
     }

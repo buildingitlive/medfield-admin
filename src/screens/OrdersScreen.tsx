@@ -101,6 +101,40 @@ export const OrdersScreen: React.FC<OrdersScreenProps> = () => {
       alert('Failed to assign partner: ' + error.message);
       return;
     }
+
+    // Emit notifications for assigned partner & customers
+    const assignedPartner = partners.find(p => p.id === partnerId);
+    const assignedOrders = orders.filter(o => orderIds.includes(o.id));
+    
+    const notifs: any[] = [];
+    if (assignedPartner) {
+      notifs.push({
+        recipient_type: 'partner',
+        recipient_id: partnerId,
+        title: 'New Delivery Assignment',
+        description: `You have been assigned ${orderIds.length} new order(s) for delivery.`,
+        type: 'order_assigned',
+        link: '/',
+        is_read: false
+      });
+    }
+
+    assignedOrders.forEach(o => {
+      notifs.push({
+        recipient_type: 'user',
+        recipient_id: o.user_id,
+        title: 'Order En Route 🚚',
+        description: `Your order #${o.id.split('-')[0]} has been verified and assigned to our field partner for dispatch.`,
+        type: 'order_assigned',
+        link: '/orders',
+        is_read: false
+      });
+    });
+
+    if (notifs.length > 0) {
+      await supabase.from('notifications').insert(notifs);
+    }
+
     setAssignModal({ orderIds: [], open: false });
     setSelectedOrders([]); // clear selection
     loadOrders();
