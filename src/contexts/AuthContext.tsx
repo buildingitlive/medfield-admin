@@ -48,7 +48,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       .from('admin_users')
       .select('*')
       .eq('id', currentUser.id)
-      .single();
+      .maybeSingle();
 
     if (adminData) {
       setRole('admin');
@@ -62,7 +62,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       .from('partners')
       .select('*')
       .eq('email', currentUser.email)
-      .single();
+      .maybeSingle();
 
     if (partnerData && partnerData.is_active) {
       setRole('partner');
