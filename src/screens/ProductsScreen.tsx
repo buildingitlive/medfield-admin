@@ -36,8 +36,8 @@ const defaultForm = {
   description: '', image_url: '' as string, category: 'Botanical' as string,
 };
 
-const categories = ['All', 'Botanical', 'Analgesic', 'Cardiac', 'Immunology', 'Wellness'];
-const forms = ['Tablet', 'Capsule', 'Tincture', 'Extract', 'Topical'];
+const categories = ['All', 'Botanical', 'Allopathy', 'Ayush', 'Analgesic', 'Cardiac', 'Immunology', 'Wellness'];
+const forms = ['Tablet', 'Capsule', 'Syrup', 'Injection', 'Tincture', 'Extract', 'Topical', 'Powder', 'Drop'];
 
 export const ProductsScreen: React.FC<ProductsScreenProps> = () => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -52,6 +52,12 @@ export const ProductsScreen: React.FC<ProductsScreenProps> = () => {
   const [form, setForm] = useState(defaultForm);
   const [saving, setSaving] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  
+  // Catalog Search State
+  const [catalogSuggestions, setCatalogSuggestions] = useState<any[]>([]);
+  const [catalogSearchLoading, setCatalogSearchLoading] = useState(false);
+  const searchTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+
   const pageSize = 10;
 
   useEffect(() => { loadProducts(); }, [page, categoryFilter, stockFilter]);
@@ -62,6 +68,46 @@ export const ProductsScreen: React.FC<ProductsScreenProps> = () => {
     window.addEventListener('admin-refresh', handler);
     return () => window.removeEventListener('admin-refresh', handler);
   }, []);
+
+  const searchCatalog = async (query: string) => {
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    
+    if (query.trim().length < 3) {
+      setCatalogSuggestions([]);
+      return;
+    }
+
+    searchTimeoutRef.current = setTimeout(async () => {
+      setCatalogSearchLoading(true);
+      const { data } = await supabase
+        .from('medicine_catalog')
+        .select('*')
+        .ilike('name', `%${query}%`)
+        .limit(8);
+      
+      setCatalogSuggestions(data || []);
+      setCatalogSearchLoading(false);
+    }, 400); // 400ms debounce
+  };
+
+  const selectCatalogItem = (item: any) => {
+    setForm(prev => ({
+      ...prev,
+      name: item.name,
+      generic_name: item.short_composition1 || item.salt_composition || '',
+      mrp: item.price || 0,
+      dosage: item.pack_size_label || '',
+      grower_name: item.manufacturer_name || '',
+      description: item.medicine_desc || '',
+      category: item.type?.toLowerCase().includes('allopathy') ? 'Allopathy' : prev.category,
+      form: item.pack_size_label?.toLowerCase().includes('syrup') ? 'Syrup' : 
+            item.pack_size_label?.toLowerCase().includes('injection') ? 'Injection' :
+            item.pack_size_label?.toLowerCase().includes('drop') ? 'Drop' :
+            item.pack_size_label?.toLowerCase().includes('powder') ? 'Powder' :
+            item.pack_size_label?.toLowerCase().includes('capsule') ? 'Capsule' : 'Tablet'
+    }));
+    setCatalogSuggestions([]); // hide dropdown
+  };
 
   const loadProducts = async () => {
     setLoading(true);
@@ -84,6 +130,7 @@ export const ProductsScreen: React.FC<ProductsScreenProps> = () => {
   const openCreateModal = () => {
     setEditId(null);
     setForm(defaultForm);
+    setCatalogSuggestions([]);
     setModalOpen(true);
   };
 
@@ -100,6 +147,7 @@ export const ProductsScreen: React.FC<ProductsScreenProps> = () => {
       description: p.description, image_url: p.image_url || '',
       category: p.category,
     });
+    setCatalogSuggestions([]);
     setModalOpen(true);
   };
 
@@ -258,9 +306,39 @@ export const ProductsScreen: React.FC<ProductsScreenProps> = () => {
               <button onClick={() => setModalOpen(false)} className="p-1 hover:bg-surface-container rounded-full"><X className="w-5 h-5" /></button>
             </div>
             <div className="flex flex-col gap-4">
-              <div>
-                <label className="text-xs font-semibold text-on-surface-variant mb-1 block">Product Name</label>
-                <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className={inputCls} />
+              <div className="relative">
+                <label className="text-xs font-semibold text-on-surface-variant mb-1 block flex items-center justify-between">
+                  <span>Product Name</span>
+                  {catalogSearchLoading && <Loader2 className="w-3 h-3 animate-spin text-primary" />}
+                </label>
+                <input 
+                  value={form.name} 
+                  onChange={(e) => {
+                    setForm({ ...form, name: e.target.value });
+                    searchCatalog(e.target.value);
+                  }} 
+                  className={inputCls} 
+                  autoComplete="off"
+                />
+                
+                {/* Catalog Suggestions Dropdown */}
+                {catalogSuggestions.length > 0 && (
+                  <div className="absolute z-10 w-full mt-1 bg-surface-container-lowest border border-outline-variant/30 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                    {catalogSuggestions.map((item, idx) => (
+                      <div 
+                        key={idx}
+                        className="p-3 hover:bg-surface-container-low cursor-pointer border-b border-outline-variant/10 last:border-0"
+                        onClick={() => selectCatalogItem(item)}
+                      >
+                        <div className="text-sm font-semibold text-on-surface">{item.name}</div>
+                        <div className="text-xs text-on-surface-variant flex justify-between mt-1">
+                          <span className="truncate max-w-[70%]">{item.manufacturer_name}</span>
+                          <span className="shrink-0 text-primary">₹{item.price}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
