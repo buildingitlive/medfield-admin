@@ -547,15 +547,26 @@ export const OrdersScreen: React.FC<OrdersScreenProps> = () => {
                       <MapPin className="w-3.5 h-3.5" /> Delivery Address
                     </h3>
                     <div className="text-sm text-on-surface">
-                      <p className="font-medium">{detailsModal.address_snapshot.name}</p>
+                      <p className="font-medium">{detailsModal.address_snapshot.name || detailsModal.address_snapshot.recipient_name}</p>
                       <p className="text-on-surface-variant mt-1">
-                        {detailsModal.address_snapshot.house_no}, {detailsModal.address_snapshot.area}
+                        {detailsModal.address_snapshot.house_no || detailsModal.address_snapshot.street}{detailsModal.address_snapshot.area ? `, ${detailsModal.address_snapshot.area}` : ''}
                       </p>
                       <p className="text-on-surface-variant">
                         {detailsModal.address_snapshot.landmark && `${detailsModal.address_snapshot.landmark}, `}
                         {detailsModal.address_snapshot.city}
                       </p>
                       <p className="text-on-surface-variant mt-1">📞 {detailsModal.address_snapshot.phone}</p>
+                      {detailsModal.address_snapshot.latitude && detailsModal.address_snapshot.longitude && (
+                        <a
+                          href={`https://www.google.com/maps/search/?api=1&query=${detailsModal.address_snapshot.latitude},${detailsModal.address_snapshot.longitude}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 mt-2 px-3 py-1.5 bg-primary/10 text-primary text-xs font-semibold rounded-lg hover:bg-primary/20 transition-colors"
+                        >
+                          <MapPin className="w-3.5 h-3.5" />
+                          Open in Google Maps
+                        </a>
+                      )}
                     </div>
                   </div>
                 )}

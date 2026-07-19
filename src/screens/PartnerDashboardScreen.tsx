@@ -173,9 +173,21 @@ export const PartnerDashboardScreen: React.FC<PartnerDashboardScreenProps> = () 
                   >
                     <Phone className="w-3 h-3" /> Call Customer
                   </a>
-                  <button className="py-2 px-3 border border-outline-variant rounded-lg text-xs font-semibold text-on-surface-variant hover:bg-surface-container transition-colors">
-                    <MapPin className="w-3.5 h-3.5" />
-                  </button>
+                  {order.address_snapshot?.latitude && order.address_snapshot?.longitude ? (
+                    <a
+                      href={`https://www.google.com/maps/search/?api=1&query=${order.address_snapshot.latitude},${order.address_snapshot.longitude}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="py-2 px-3 border border-outline-variant rounded-lg text-xs font-semibold text-primary hover:bg-primary/5 transition-colors"
+                    >
+                      <MapPin className="w-3.5 h-3.5" />
+                    </a>
+                  ) : (
+                    <button className="py-2 px-3 border border-outline-variant rounded-lg text-xs font-semibold text-on-surface-variant opacity-40 cursor-not-allowed" disabled>
+                      <MapPin className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </div>
               </div>
             ))
@@ -195,10 +207,22 @@ export const PartnerDashboardScreen: React.FC<PartnerDashboardScreenProps> = () 
               </button>
             </div>
 
-            {/* Map placeholder */}
-            <div className="h-40 bg-surface-container flex items-center justify-center text-on-surface-variant text-xs">
-              📍 Map View
-            </div>
+            {/* Map View */}
+            {selectedOrder.address_snapshot?.latitude && selectedOrder.address_snapshot?.longitude ? (
+              <a
+                href={`https://www.google.com/maps/search/?api=1&query=${selectedOrder.address_snapshot.latitude},${selectedOrder.address_snapshot.longitude}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="h-40 bg-primary/5 flex flex-col items-center justify-center gap-2 text-primary text-sm font-semibold hover:bg-primary/10 transition-colors cursor-pointer"
+              >
+                <MapPin className="w-6 h-6" />
+                Open in Google Maps
+              </a>
+            ) : (
+              <div className="h-40 bg-surface-container flex items-center justify-center text-on-surface-variant text-xs">
+                📍 No GPS coordinates available
+              </div>
+            )}
 
             {/* Customer Info */}
             <div className="p-5 border-b border-outline-variant/20">
