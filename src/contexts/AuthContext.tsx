@@ -28,7 +28,16 @@ interface AuthContextType {
   adminProfile: AdminProfile | null;
   partnerProfile: PartnerProfile | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: string | null }>;
+  signIn: (emailOrPhone: string, password: string) => Promise<{ error: string | null }>;
+  signUp: (params: {
+    emailOrPhone: string;
+    password: string;
+    name: string;
+    role: 'admin' | 'partner';
+    phone?: string;
+    region?: string;
+    city?: string;
+  }) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
 }
 
@@ -43,12 +52,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   const detectRole = useCallback(async (currentUser: User) => {
-    // Check admin_users first
-    const { data: adminData } = await supabase
+    const userEmail = currentUser.email;
+    const userPhone = currentUser.phone;
+    const phoneClean = userPhone ? userPhone.replace(/\D/g, '').slice(-10) : '';
+
+    // Check admin_users first by id, or email, or phone
+    let { data: adminData } = await supabase
       .from('admin_users')
       .select('*')
       .eq('id', currentUser.id)
       .maybeSingle();
+
+    if (!adminData && userEmail) {
+      const { data } = await supabase.from('admin_users').select('*').eq('email', userEmail).maybeSingle();
+      adminData = data;
+    }
+    if (!adminData && phoneClean) {
+      const { data } = await supabase.from('admin_users').select('*').ilike('phone', `%${phoneClean}%`).maybeSingle();
+      adminData = data;
+    }
 
     if (adminData) {
       setRole('admin');
@@ -57,12 +79,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
 
-    // Check partners
-    const { data: partnerData } = await supabase
-      .from('partners')
-      .select('*')
-      .eq('email', currentUser.email)
-      .maybeSingle();
+    // Check partners by email, or phone, or user id
+    let partnerData = null;
+    if (userEmail) {
+      const { data } = await supabase.from('partners').select('*').eq('email', userEmail).maybeSingle();
+      partnerData = data;
+    }
+    if (!partnerData && phoneClean) {
+      const { data } = await supabase.from('partners').select('*').ilike('phone', `%${phoneClean}%`).maybeSingle();
+      partnerData = data;
+    }
+    if (!partnerData) {
+      const { data } = await supabase.from('partners').select('*').eq('id', currentUser.id).maybeSingle();
+      partnerData = data;
+    }
 
     if (partnerData && partnerData.is_active) {
       setRole('partner');
@@ -104,9 +134,115 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => subscription.unsubscribe();
   }, [detectRole]);
 
-  const signIn = async (email: string, password: string): Promise<{ error: string | null }> => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) return { error: error.message };
+  const signIn = async (emailOrPhone: string, password: string): Promise<{ error: string | null }> => {
+    const input = emailOrPhone.trim();
+    if (input.includes('@')) {
+      const { error } = await supabase.auth.signInWithPassword({ email: input, password });
+      return { error: error ? error.message : null };
+    } else {
+      const phoneClean = input.replace(/\D/g, '').slice(-10);
+      const formattedPhone = input.startsWith('+') ? input : `+91${phoneClean}`;
+      
+      let { error } = await supabase.auth.signInWithPassword({ phone: formattedPhone, password });
+      if (!error) return { error: null };
+
+      const syntheticEmail = `phone_${phoneClean}@medfield.phone`;
+      let { error: synthError } = await supabase.auth.signInWithPassword({ email: syntheticEmail, password });
+      if (!synthError) return { error: null };
+
+      const { data: partner } = await supabase.from('partners').select('email').ilike('phone', `%${phoneClean}%`).maybeSingle();
+      if (partner?.email) {
+        let { error: partnerEmailError } = await supabase.auth.signInWithPassword({ email: partner.email, password });
+        if (!partnerEmailError) return { error: null };
+      }
+
+      const { data: admin } = await supabase.from('admin_users').select('email').ilike('phone', `%${phoneClean}%`).maybeSingle();
+      if (admin?.email) {
+        let { error: adminEmailError } = await supabase.auth.signInWithPassword({ email: admin.email, password });
+        if (!adminEmailError) return { error: null };
+      }
+
+      return { error: error?.message || synthError?.message || 'Invalid credentials for this phone number.' };
+    }
+  };
+
+  const signUp = async (params: {
+    emailOrPhone: string;
+    password: string;
+    name: string;
+    role: 'admin' | 'partner';
+    phone?: string;
+    region?: string;
+    city?: string;
+  }): Promise<{ error: string | null }> => {
+    const input = params.emailOrPhone.trim();
+    const isEmail = input.includes('@');
+    let userId: string | null = null;
+    let registeredEmail = isEmail ? input : `phone_${input.replace(/\D/g, '').slice(-10)}@medfield.phone`;
+    let registeredPhone = !isEmail ? input : (params.phone || '');
+
+    if (isEmail) {
+      const { data, error } = await supabase.auth.signUp({
+        email: registeredEmail,
+        password: params.password,
+        options: { data: { name: params.name, role: params.role } }
+      });
+      if (error) return { error: error.message };
+      userId = data.user?.id || null;
+    } else {
+      const phoneClean = input.replace(/\D/g, '').slice(-10);
+      const formattedPhone = input.startsWith('+') ? input : `+91${phoneClean}`;
+      
+      const { data: phoneData, error: phoneError } = await supabase.auth.signUp({
+        phone: formattedPhone,
+        password: params.password,
+        options: { data: { name: params.name, role: params.role } }
+      });
+
+      if (!phoneError && phoneData?.user) {
+        userId = phoneData.user.id;
+      } else {
+        const { data: synthData, error: synthError } = await supabase.auth.signUp({
+          email: registeredEmail,
+          password: params.password,
+          options: { data: { name: params.name, role: params.role } }
+        });
+        if (synthError) return { error: synthError.message };
+        userId = synthData?.user?.id || null;
+      }
+    }
+
+    if (params.role === 'admin') {
+      const adminRow: any = {
+        name: params.name,
+        email: registeredEmail,
+        role: 'admin'
+      };
+      if (userId) adminRow.id = userId;
+      if (registeredPhone) adminRow.phone = registeredPhone;
+
+      const { error: insertErr } = await supabase.from('admin_users').insert(adminRow);
+      if (insertErr) {
+        const coreRow: any = { name: params.name, email: registeredEmail, role: 'admin' };
+        if (userId) coreRow.id = userId;
+        await supabase.from('admin_users').insert(coreRow);
+      }
+    } else {
+      const partnerRow: any = {
+        name: params.name,
+        email: registeredEmail,
+        phone: registeredPhone || input,
+        region: params.region || 'city_wide',
+        city: params.city || 'Gorakhpur',
+        margin_share: 0,
+        is_active: true
+      };
+      if (userId) partnerRow.id = userId;
+
+      const { error: partnerErr } = await supabase.from('partners').insert(partnerRow);
+      if (partnerErr) return { error: partnerErr.message };
+    }
+
     return { error: null };
   };
 
@@ -118,7 +254,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, role, adminProfile, partnerProfile, loading, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, session, role, adminProfile, partnerProfile, loading, signIn, signUp, signOut }}>
       {children}
     </AuthContext.Provider>
   );

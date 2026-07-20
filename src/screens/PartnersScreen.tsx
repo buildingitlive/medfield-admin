@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, X, Loader2, MapPin, Phone, Mail } from 'lucide-react';
+import { Plus, Edit2, X, Loader2, MapPin, Phone, Mail, Check, ChevronDown } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 interface PartnersScreenProps {
@@ -19,9 +19,9 @@ interface Partner {
   created_at: string;
 }
 
-const regions = ['city_north', 'city_south', 'city_east', 'city_west'];
+const regions = ['city_wide', 'city_north', 'city_south', 'city_east', 'city_west'];
 
-const defaultForm = { name: '', email: '', phone: '', region: 'city_north', city: '', password: '', margin_share: 0, coordinates: '' };
+const defaultForm = { name: '', email: '', phone: '', region: 'city_wide', city: '', password: '', margin_share: 0, coordinates: '' };
 
 export const PartnersScreen: React.FC<PartnersScreenProps> = () => {
   const [partners, setPartners] = useState<Partner[]>([]);
@@ -32,6 +32,7 @@ export const PartnersScreen: React.FC<PartnersScreenProps> = () => {
   const [form, setForm] = useState(defaultForm);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [regionDropdownOpen, setRegionDropdownOpen] = useState(false);
 
   useEffect(() => { loadPartners(); }, []);
 
@@ -73,6 +74,7 @@ export const PartnersScreen: React.FC<PartnersScreenProps> = () => {
     setEditId(null);
     setForm(defaultForm);
     setError(null);
+    setRegionDropdownOpen(false);
     setModalOpen(true);
   };
 
@@ -86,6 +88,12 @@ export const PartnersScreen: React.FC<PartnersScreenProps> = () => {
   const handleSave = async () => {
     setSaving(true);
     setError(null);
+
+    if (!form.name.trim() || !form.email.trim() || !form.phone.trim() || !form.region || !form.city.trim() || form.margin_share === undefined || form.margin_share === null || Number.isNaN(form.margin_share) || (form.margin_share as any) === '' || (!editId && !form.password.trim())) {
+      setError('Please fill out all mandatory fields: Partner Name, Email, Password, Region, City, Phone, and Margin Share.');
+      setSaving(false);
+      return;
+    }
 
     if (editId) {
       // Update partner info
@@ -272,11 +280,11 @@ export const PartnersScreen: React.FC<PartnersScreenProps> = () => {
 
             <div className="flex flex-col gap-4">
               <div>
-                <label className="text-xs font-semibold text-on-surface-variant mb-1 block">Partner Name</label>
+                <label className="text-xs font-semibold text-on-surface-variant mb-1 block">Partner Name <span className="text-error">*</span></label>
                 <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full px-4 py-2.5 bg-surface-container-low border border-outline-variant rounded-lg text-sm focus:outline-none focus:border-primary" />
               </div>
               <div>
-                <label className="text-xs font-semibold text-on-surface-variant mb-1 block">Email</label>
+                <label className="text-xs font-semibold text-on-surface-variant mb-1 block">Email <span className="text-error">*</span></label>
                 <input
                   type="email"
                   value={form.email}
@@ -287,7 +295,7 @@ export const PartnersScreen: React.FC<PartnersScreenProps> = () => {
               </div>
               {!editId && (
                 <div>
-                  <label className="text-xs font-semibold text-on-surface-variant mb-1 block">Password</label>
+                  <label className="text-xs font-semibold text-on-surface-variant mb-1 block">Password <span className="text-error">*</span></label>
                   <input
                     type="password"
                     value={form.password}
@@ -298,24 +306,54 @@ export const PartnersScreen: React.FC<PartnersScreenProps> = () => {
                 </div>
               )}
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-semibold text-on-surface-variant mb-1 block">Region</label>
-                  <select value={form.region} onChange={(e) => setForm({ ...form, region: e.target.value })} className="w-full px-4 py-2.5 bg-surface-container-low border border-outline-variant rounded-lg text-sm focus:outline-none focus:border-primary cursor-pointer">
-                    {regions.map(r => <option key={r} value={r}>{formatRegion(r)}</option>)}
-                  </select>
+                <div className="relative">
+                  <label className="text-xs font-semibold text-on-surface-variant mb-1 block">Region <span className="text-error">*</span></label>
+                  <button
+                    type="button"
+                    onClick={() => setRegionDropdownOpen(!regionDropdownOpen)}
+                    className="w-full px-4 py-2.5 bg-surface-container-low border border-outline-variant rounded-lg text-sm font-medium text-on-surface flex items-center justify-between focus:outline-none focus:border-primary transition-colors text-left"
+                  >
+                    <span>{formatRegion(form.region)}</span>
+                    <ChevronDown className={`w-4 h-4 text-on-surface-variant transition-transform duration-200 ${regionDropdownOpen ? 'rotate-180' : ''}`} />
+                  </button>
+                  {regionDropdownOpen && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setRegionDropdownOpen(false)} />
+                      <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-surface-container-lowest border border-outline-variant rounded-xl shadow-xl py-1.5 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+                        {regions.map(r => (
+                          <button
+                            key={r}
+                            type="button"
+                            onClick={() => {
+                              setForm({ ...form, region: r });
+                              setRegionDropdownOpen(false);
+                            }}
+                            className={`w-full text-left px-3.5 py-2.5 text-sm flex items-center justify-between transition-colors ${
+                              form.region === r
+                                ? 'bg-primary/10 text-primary font-semibold'
+                                : 'text-on-surface hover:bg-surface-container'
+                            }`}
+                          >
+                            <span>{formatRegion(r)}</span>
+                            {form.region === r && <Check className="w-4 h-4 text-primary shrink-0" />}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-on-surface-variant mb-1 block">City</label>
+                  <label className="text-xs font-semibold text-on-surface-variant mb-1 block">City <span className="text-error">*</span></label>
                   <input value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} placeholder="e.g. Gorakhpur" className="w-full px-4 py-2.5 bg-surface-container-low border border-outline-variant rounded-lg text-sm focus:outline-none focus:border-primary" />
                 </div>
               </div>
               <div>
-                <label className="text-xs font-semibold text-on-surface-variant mb-1 block">Phone</label>
+                <label className="text-xs font-semibold text-on-surface-variant mb-1 block">Phone <span className="text-error">*</span></label>
                 <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="w-full px-4 py-2.5 bg-surface-container-low border border-outline-variant rounded-lg text-sm focus:outline-none focus:border-primary" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-xs font-semibold text-on-surface-variant mb-1 block">Margin Share (%)</label>
+                  <label className="text-xs font-semibold text-on-surface-variant mb-1 block">Margin Share (%) <span className="text-error">*</span></label>
                   <input type="number" step="0.1" value={form.margin_share} onChange={(e) => setForm({ ...form, margin_share: Number(e.target.value) })} className="w-full px-4 py-2.5 bg-surface-container-low border border-outline-variant rounded-lg text-sm focus:outline-none focus:border-primary" />
                 </div>
                 <div>
@@ -324,8 +362,9 @@ export const PartnersScreen: React.FC<PartnersScreenProps> = () => {
                 </div>
               </div>
               <button
-                onClick={handleSave} disabled={saving || !form.name || !form.email}
-                className="w-full mt-2 bg-primary text-on-primary font-semibold text-sm py-3 rounded-lg hover:bg-primary-container transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                onClick={handleSave}
+                disabled={saving || !form.name.trim() || !form.email.trim() || !form.phone.trim() || !form.region || !form.city.trim() || form.margin_share === undefined || form.margin_share === null || Number.isNaN(form.margin_share) || (form.margin_share as any) === '' || (!editId && !form.password.trim())}
+                className="w-full mt-2 bg-primary text-on-primary font-semibold text-sm py-3 rounded-lg hover:bg-primary-container transition-colors disabled:opacity-50 flex items-center justify-center gap-2 shadow-sm"
               >
                 {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : editId ? 'Save Changes' : 'Create Partner'}
               </button>

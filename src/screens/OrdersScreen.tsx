@@ -110,6 +110,13 @@ export const OrdersScreen: React.FC<OrdersScreenProps> = () => {
   };
 
   const assignPartner = async (orderIds: string[], partnerId: string) => {
+    // Ensure all orders being assigned have been confirmed first
+    const unconfirmedOrders = orders.filter(o => orderIds.includes(o.id) && o.status !== 'Order Confirmed');
+    if (unconfirmedOrders.length > 0) {
+      alert(`Cannot assign partner: ${unconfirmedOrders.length} order(s) have not been confirmed (` + unconfirmedOrders.map(o => `#${o.id.split('-')[0]}`).join(', ') + `). Without order confirmation, orders cannot be assigned to a partner.`);
+      return;
+    }
+
     // Bulk assign
     const { error } = await supabase.from('orders').update({ assigned_partner_id: partnerId, status: 'Verified by Pharmacy' }).in('id', orderIds);
     if (error) {
@@ -256,7 +263,15 @@ export const OrdersScreen: React.FC<OrdersScreenProps> = () => {
           <div className="flex items-center gap-3 ml-4 pl-4 border-l border-outline-variant/30">
             <span className="text-sm font-medium text-primary">{selectedOrders.length} selected</span>
             <button 
-              onClick={() => setAssignModal({ orderIds: selectedOrders, open: true })}
+              onClick={() => {
+                const confirmedIds = selectedOrders.filter(id => orders.find(o => o.id === id)?.status === 'Order Confirmed');
+                const unconfirmedCount = selectedOrders.length - confirmedIds.length;
+                if (unconfirmedCount > 0) {
+                  alert(`Without order confirmation, orders cannot be assigned to a partner (${unconfirmedCount} unconfirmed order(s) excluded).`);
+                }
+                if (confirmedIds.length === 0) return;
+                setAssignModal({ orderIds: confirmedIds, open: true });
+              }}
               className="px-4 py-2 bg-primary text-on-primary rounded-lg text-sm font-semibold hover:bg-primary-container transition-colors shadow-sm"
             >
               Bulk Assign to Partner
@@ -357,7 +372,7 @@ export const OrdersScreen: React.FC<OrdersScreenProps> = () => {
                         </span>
                       </td>
                       <td className="py-4 px-4 text-right" onClick={(e) => e.stopPropagation()}>
-                        {!order.assigned_partner_id && order.status === 'Order Placed' ? (
+                        {!order.assigned_partner_id && order.status === 'Order Confirmed' ? (
                           <button
                             onClick={() => setAssignModal({ orderIds: [order.id], open: true })}
                             className="px-4 py-1.5 bg-primary text-on-primary rounded-lg text-xs font-semibold hover:bg-primary-container transition-colors"
@@ -523,7 +538,7 @@ export const OrdersScreen: React.FC<OrdersScreenProps> = () => {
                     Confirm Order
                   </button>
                 )}
-                {!detailsModal.assigned_partner_id && detailsModal.status === 'Order Placed' && (
+                {!detailsModal.assigned_partner_id && detailsModal.status === 'Order Confirmed' && (
                   <button
                     onClick={() => { setDetailsModal(null); setAssignModal({ orderIds: [detailsModal.id], open: true }); }}
                     className="px-4 py-1.5 bg-primary text-on-primary rounded-lg text-xs font-semibold hover:bg-primary-container transition-colors"
