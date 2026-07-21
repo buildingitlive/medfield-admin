@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, X, Loader2, MapPin, Phone, Mail, Check, ChevronDown } from 'lucide-react';
+import { Plus, Edit2, X, Loader2, MapPin, Phone, Mail, Check, ChevronDown, Trash2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 interface PartnersScreenProps {
@@ -89,8 +89,8 @@ export const PartnersScreen: React.FC<PartnersScreenProps> = () => {
     setSaving(true);
     setError(null);
 
-    if (!form.name.trim() || !form.email.trim() || !form.phone.trim() || !form.region || !form.city.trim() || form.margin_share === undefined || form.margin_share === null || Number.isNaN(form.margin_share) || (form.margin_share as any) === '' || (!editId && !form.password.trim())) {
-      setError('Please fill out all mandatory fields: Partner Name, Email, Password, Region, City, Phone, and Margin Share.');
+    if (!form.name.trim() || !form.phone.trim() || !form.region || !form.city.trim() || form.margin_share === undefined || form.margin_share === null || Number.isNaN(form.margin_share) || (form.margin_share as any) === '' || (!editId && !form.password.trim())) {
+      setError('Please fill out all mandatory fields: Partner Name, Phone, Password, Region, City, and Margin Share.');
       setSaving(false);
       return;
     }
@@ -106,9 +106,15 @@ export const PartnersScreen: React.FC<PartnersScreenProps> = () => {
         setError('Password changes require server-side admin API. Partner can use forgot-password flow.');
       }
     } else {
+      let registeredEmail = form.email.trim();
+      if (!registeredEmail && form.phone) {
+        const phoneClean = form.phone.replace(/\D/g, '').slice(-10);
+        registeredEmail = `phone_${phoneClean}@medfield.phone`;
+      }
+
       // Create new partner: first sign up in auth, then insert partner row
       const { error: authError } = await supabase.auth.signUp({
-        email: form.email,
+        email: registeredEmail,
         password: form.password || 'TempPass123!',
       });
 
@@ -120,7 +126,7 @@ export const PartnersScreen: React.FC<PartnersScreenProps> = () => {
 
       // Insert partner row
       const { error: insertError } = await supabase.from('partners').insert({
-        email: form.email,
+        email: registeredEmail,
         name: form.name,
         phone: form.phone,
         region: form.region,
@@ -140,6 +146,23 @@ export const PartnersScreen: React.FC<PartnersScreenProps> = () => {
     setSaving(false);
     setModalOpen(false);
     loadPartners();
+  };
+
+  const handleDelete = async (partnerId: string, partnerName: string) => {
+    if (!window.confirm(`Are you sure you want to delete ${partnerName}? This action cannot be undone.`)) {
+      return;
+    }
+    
+    try {
+      const { error: deleteError } = await supabase.from('partners').delete().eq('id', partnerId);
+      if (deleteError) {
+        alert(`Failed to delete partner: ${deleteError.message}`);
+      } else {
+        loadPartners();
+      }
+    } catch (err: any) {
+      alert(`Error deleting partner: ${err.message}`);
+    }
   };
 
   const formatRegion = (r: string) => r.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
@@ -187,9 +210,14 @@ export const PartnersScreen: React.FC<PartnersScreenProps> = () => {
                     </span>
                   </div>
                 </div>
-                <button onClick={() => openEdit(partner)} className="p-2 rounded-lg hover:bg-surface-container text-on-surface-variant transition-colors">
-                  <Edit2 className="w-4 h-4" />
-                </button>
+                <div className="flex items-center gap-1">
+                  <button onClick={() => openEdit(partner)} className="p-2 rounded-lg hover:bg-surface-container text-on-surface-variant transition-colors" title="Edit Partner">
+                    <Edit2 className="w-4 h-4" />
+                  </button>
+                  <button onClick={() => handleDelete(partner.id, partner.name)} className="p-2 rounded-lg hover:bg-error-container/50 text-error transition-colors" title="Delete Partner">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
 
               <div className="flex flex-col gap-2 text-sm text-on-surface-variant">
@@ -284,7 +312,7 @@ export const PartnersScreen: React.FC<PartnersScreenProps> = () => {
                 <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full px-4 py-2.5 bg-surface-container-low border border-outline-variant rounded-lg text-sm focus:outline-none focus:border-primary" />
               </div>
               <div>
-                <label className="text-xs font-semibold text-on-surface-variant mb-1 block">Email <span className="text-error">*</span></label>
+                <label className="text-xs font-semibold text-on-surface-variant mb-1 block">Email (Optional)</label>
                 <input
                   type="email"
                   value={form.email}
@@ -363,7 +391,7 @@ export const PartnersScreen: React.FC<PartnersScreenProps> = () => {
               </div>
               <button
                 onClick={handleSave}
-                disabled={saving || !form.name.trim() || !form.email.trim() || !form.phone.trim() || !form.region || !form.city.trim() || form.margin_share === undefined || form.margin_share === null || Number.isNaN(form.margin_share) || (form.margin_share as any) === '' || (!editId && !form.password.trim())}
+                disabled={saving || !form.name.trim() || !form.phone.trim() || !form.region || !form.city.trim() || form.margin_share === undefined || form.margin_share === null || Number.isNaN(form.margin_share) || (form.margin_share as any) === '' || (!editId && !form.password.trim())}
                 className="w-full mt-2 bg-primary text-on-primary font-semibold text-sm py-3 rounded-lg hover:bg-primary-container transition-colors disabled:opacity-50 flex items-center justify-center gap-2 shadow-sm"
               >
                 {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : editId ? 'Save Changes' : 'Create Partner'}

@@ -150,19 +150,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       let { error: synthError } = await supabase.auth.signInWithPassword({ email: syntheticEmail, password });
       if (!synthError) return { error: null };
 
-      const { data: partner } = await supabase.from('partners').select('email').ilike('phone', `%${phoneClean}%`).maybeSingle();
-      if (partner?.email) {
-        let { error: partnerEmailError } = await supabase.auth.signInWithPassword({ email: partner.email, password });
-        if (!partnerEmailError) return { error: null };
+      let partnerEmailErrorObj = null;
+      try {
+        const { data: partner } = await supabase.from('partners').select('email').ilike('phone', `%${phoneClean}%`).maybeSingle();
+        if (partner?.email) {
+          let { error: partnerEmailError } = await supabase.auth.signInWithPassword({ email: partner.email, password });
+          if (!partnerEmailError) return { error: null };
+          partnerEmailErrorObj = partnerEmailError;
+        }
+      } catch (e) {
+        // RLS will typically block this for anonymous users, which is expected for security.
       }
 
-      const { data: admin } = await supabase.from('admin_users').select('email').ilike('phone', `%${phoneClean}%`).maybeSingle();
-      if (admin?.email) {
-        let { error: adminEmailError } = await supabase.auth.signInWithPassword({ email: admin.email, password });
-        if (!adminEmailError) return { error: null };
-      }
+      // We do NOT search admin_users by phone because the phone column does not exist on admin_users and it causes a 400 Bad Request.
 
-      return { error: error?.message || synthError?.message || 'Invalid credentials for this phone number.' };
+      return { error: error?.message || synthError?.message || partnerEmailErrorObj?.message || 'Invalid credentials for this phone number.' };
     }
   };
 
