@@ -787,7 +787,7 @@ export const OrdersScreen: React.FC<OrdersScreenProps> = () => {
                             />
                             {/* Auto-complete dropdown */}
                             {activeAutoCompleteIdx === idx && autoCompleteResults.length > 0 && (
-                              <div className="absolute z-50 left-3 right-3 top-full mt-1 bg-surface-container-lowest border border-outline-variant rounded-lg shadow-lg max-h-40 overflow-y-auto">
+                              <div className="absolute z-[100] left-3 right-3 top-full mt-1 bg-surface-container-lowest border border-outline-variant rounded-lg shadow-xl max-h-40 overflow-y-auto">
                                 {autoCompleteResults.map((result: any) => (
                                   <button
                                     key={result.id}
