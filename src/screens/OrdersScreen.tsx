@@ -919,6 +919,37 @@ export const OrdersScreen: React.FC<OrdersScreenProps> = () => {
                     );
                   }
 
+                  // 2b. Auto-sync into customer-facing products table (Dynamic Catalog Growth)
+                  for (const it of validItems) {
+                    const { data: existing } = await supabase
+                      .from('products')
+                      .select('id')
+                      .eq('name', it.medicine_name)
+                      .maybeSingle();
+
+                    if (!existing) {
+                      await supabase.from('products').insert({
+                        name: it.medicine_name,
+                        generic_name: it.company || '',
+                        price: it.mrp * (1 - confirmDiscount / 100),
+                        mrp: it.mrp,
+                        category: null,
+                        description: 'auto-added',
+                        dosage: '',
+                        form: 'Tablet',
+                        in_stock: true,
+                        requires_prescription: true,
+                        grower_name: '',
+                        grower_location: '',
+                        grower_certification: '',
+                        grower_purity_score: 0,
+                        batch_number: '',
+                        harvest_date: '',
+                        image_url: null,
+                      });
+                    }
+                  }
+
                   // 3. Update order status and total
                   await supabase.from('orders').update({
                     status: 'Order Confirmed',

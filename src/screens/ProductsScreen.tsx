@@ -10,41 +10,33 @@ interface Product {
   id: string;
   name: string;
   generic_name: string;
-  dosage: string;
-  form: string;
   price: number;
   mrp: number;
-  in_stock: boolean;
-  requires_prescription: boolean;
   grower_name: string;
-  grower_location: string;
-  grower_certification: string;
-  grower_purity_score: number;
-  batch_number: string;
-  harvest_date: string;
   description: string;
-  image_url: string | null;
   category: string;
   created_at: string;
 }
 
 const defaultForm = {
-  name: '', generic_name: '', dosage: '', form: 'Tablet' as string,
-  price: 0, mrp: 0, in_stock: true, requires_prescription: false,
-  grower_name: '', grower_location: '', grower_certification: '',
-  grower_purity_score: 95, batch_number: '', harvest_date: '',
-  description: '', image_url: '' as string, category: 'Botanical' as string,
+  name: '',
+  generic_name: '',
+  company: '',
+  mrp: 0,
+  category: '' as string,
+  description: '',
 };
 
 const categories = ['All', 'Botanical', 'Allopathy', 'Ayush', 'Analgesic', 'Cardiac', 'Immunology', 'Wellness'];
-const forms = ['Tablet', 'Capsule', 'Syrup', 'Injection', 'Tincture', 'Extract', 'Topical', 'Powder', 'Drop'];
+
+type SourceFilter = 'all' | 'dynamic' | 'approved';
 
 export const ProductsScreen: React.FC<ProductsScreenProps> = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('All');
-  const [stockFilter, setStockFilter] = useState<'all' | 'instock' | 'outofstock'>('all');
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all');
   const [page, setPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [modalOpen, setModalOpen] = useState(false);
@@ -60,7 +52,7 @@ export const ProductsScreen: React.FC<ProductsScreenProps> = () => {
 
   const pageSize = 10;
 
-  useEffect(() => { loadProducts(); }, [page, categoryFilter, stockFilter]);
+  useEffect(() => { loadProducts(); }, [page, categoryFilter, sourceFilter]);
 
   // Listen for global refresh
   useEffect(() => {
@@ -87,7 +79,7 @@ export const ProductsScreen: React.FC<ProductsScreenProps> = () => {
       
       setCatalogSuggestions(data || []);
       setCatalogSearchLoading(false);
-    }, 400); // 400ms debounce
+    }, 400);
   };
 
   const selectCatalogItem = (item: any) => {
@@ -96,17 +88,9 @@ export const ProductsScreen: React.FC<ProductsScreenProps> = () => {
       name: item.name,
       generic_name: item.short_composition1 || item.salt_composition || '',
       mrp: item.price || 0,
-      dosage: item.pack_size_label || '',
-      grower_name: item.manufacturer_name || '',
       description: item.medicine_desc || '',
-      category: item.type?.toLowerCase().includes('allopathy') ? 'Allopathy' : prev.category,
-      form: item.pack_size_label?.toLowerCase().includes('syrup') ? 'Syrup' : 
-            item.pack_size_label?.toLowerCase().includes('injection') ? 'Injection' :
-            item.pack_size_label?.toLowerCase().includes('drop') ? 'Drop' :
-            item.pack_size_label?.toLowerCase().includes('powder') ? 'Powder' :
-            item.pack_size_label?.toLowerCase().includes('capsule') ? 'Capsule' : 'Tablet'
     }));
-    setCatalogSuggestions([]); // hide dropdown
+    setCatalogSuggestions([]);
   };
 
   const loadProducts = async () => {
@@ -118,8 +102,10 @@ export const ProductsScreen: React.FC<ProductsScreenProps> = () => {
       .range((page - 1) * pageSize, page * pageSize - 1);
 
     if (categoryFilter !== 'All') query = query.eq('category', categoryFilter);
-    if (stockFilter === 'instock') query = query.eq('in_stock', true);
-    if (stockFilter === 'outofstock') query = query.eq('in_stock', false);
+    
+    // Source filter
+    if (sourceFilter === 'dynamic') query = query.eq('description', 'auto-added');
+    if (sourceFilter === 'approved') query = query.neq('description', 'auto-added');
 
     const { data, count } = await query;
     setProducts(data || []);
@@ -137,15 +123,12 @@ export const ProductsScreen: React.FC<ProductsScreenProps> = () => {
   const openEditModal = (p: Product) => {
     setEditId(p.id);
     setForm({
-      name: p.name, generic_name: p.generic_name, dosage: p.dosage,
-      form: p.form, price: p.price, mrp: p.mrp, in_stock: p.in_stock,
-      requires_prescription: p.requires_prescription,
-      grower_name: p.grower_name, grower_location: p.grower_location,
-      grower_certification: p.grower_certification || '',
-      grower_purity_score: p.grower_purity_score || 95,
-      batch_number: p.batch_number, harvest_date: p.harvest_date,
-      description: p.description, image_url: p.image_url || '',
-      category: p.category,
+      name: p.name,
+      generic_name: p.generic_name || '',
+      company: p.grower_name || '',
+      mrp: p.mrp,
+      category: p.category || '',
+      description: p.description || '',
     });
     setCatalogSuggestions([]);
     setModalOpen(true);
@@ -153,7 +136,16 @@ export const ProductsScreen: React.FC<ProductsScreenProps> = () => {
 
   const handleSave = async () => {
     setSaving(true);
-    const payload = { ...form, price: Number(form.price), mrp: Number(form.mrp), grower_purity_score: Number(form.grower_purity_score) };
+    const payload: any = {
+      name: form.name,
+      generic_name: form.generic_name,
+      grower_name: form.company,
+      price: Number(form.mrp),
+      mrp: Number(form.mrp),
+      category: form.category || null,
+      description: form.description,
+    };
+
     if (editId) {
       await supabase.from('products').update(payload).eq('id', editId);
     } else {
@@ -176,6 +168,13 @@ export const ProductsScreen: React.FC<ProductsScreenProps> = () => {
     : products;
 
   const inputCls = "w-full px-4 py-2.5 bg-surface-container-low border border-outline-variant rounded-lg text-sm focus:outline-none focus:border-primary";
+
+  const sourceTabCls = (tab: SourceFilter) =>
+    `px-4 py-2 rounded-lg text-sm font-semibold transition-colors cursor-pointer ${
+      sourceFilter === tab
+        ? 'bg-primary text-on-primary shadow-sm'
+        : 'bg-surface-container-lowest border border-outline-variant text-on-surface-variant hover:bg-surface-container-low'
+    }`;
 
   return (
     <div className="flex-1 p-4 sm:p-6 flex flex-col gap-6 w-full max-w-[1440px] mx-auto">
@@ -205,14 +204,14 @@ export const ProductsScreen: React.FC<ProductsScreenProps> = () => {
         >
           {categories.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
-        <select
-          value={stockFilter} onChange={(e) => { setStockFilter(e.target.value as any); setPage(1); }}
-          className="px-4 py-2 bg-surface-container-lowest border border-outline-variant rounded-lg text-sm focus:outline-none focus:border-primary cursor-pointer"
-        >
-          <option value="all">Stock Status</option>
-          <option value="instock">In Stock</option>
-          <option value="outofstock">Out of Stock</option>
-        </select>
+
+        {/* Source Tabs */}
+        <div className="flex gap-2">
+          <button onClick={() => { setSourceFilter('all'); setPage(1); }} className={sourceTabCls('all')}>All</button>
+          <button onClick={() => { setSourceFilter('dynamic'); setPage(1); }} className={sourceTabCls('dynamic')}>Dynamic</button>
+          <button onClick={() => { setSourceFilter('approved'); setPage(1); }} className={sourceTabCls('approved')}>Approved</button>
+        </div>
+
         <div className="flex-1" />
         <span className="text-xs text-on-surface-variant">
           Showing {totalCount === 0 ? 0 : (page - 1) * pageSize + 1}-{Math.min(page * pageSize, totalCount)} of {totalCount}
@@ -231,9 +230,9 @@ export const ProductsScreen: React.FC<ProductsScreenProps> = () => {
               <tr className="border-b border-outline-variant/30 bg-surface-container-low/30">
                 <th className="py-3 px-4 w-10"><input type="checkbox" className="rounded border-outline-variant" /></th>
                 <th className="py-3 px-4 text-xs font-semibold text-on-surface-variant tracking-wider">Product Details</th>
+                <th className="py-3 px-4 text-xs font-semibold text-on-surface-variant tracking-wider">Company</th>
                 <th className="py-3 px-4 text-xs font-semibold text-on-surface-variant tracking-wider">Category</th>
-                <th className="py-3 px-4 text-xs font-semibold text-on-surface-variant tracking-wider">Price (MRP)</th>
-                <th className="py-3 px-4 text-xs font-semibold text-on-surface-variant tracking-wider">Status</th>
+                <th className="py-3 px-4 text-xs font-semibold text-on-surface-variant tracking-wider">MRP</th>
                 <th className="py-3 px-4 text-xs font-semibold text-on-surface-variant tracking-wider">Actions</th>
               </tr>
             </thead>
@@ -248,36 +247,29 @@ export const ProductsScreen: React.FC<ProductsScreenProps> = () => {
                     <td className="py-4 px-4"><input type="checkbox" className="rounded border-outline-variant" /></td>
                     <td className="py-4 px-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-lg bg-surface-container flex items-center justify-center flex-shrink-0 border border-outline-variant/20 overflow-hidden">
-                          {p.image_url ? (
-                            <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" />
-                          ) : (
-                            <span className="text-lg">💊</span>
-                          )}
+                        <div className="w-10 h-10 rounded-lg bg-surface-container flex items-center justify-center flex-shrink-0 border border-outline-variant/20">
+                          <span className="text-lg">💊</span>
                         </div>
                         <div>
                           <p className="text-sm font-semibold text-on-surface">{p.name}</p>
-                          <p className="text-xs text-on-surface-variant">{p.dosage} · {p.form}</p>
                           <p className="text-[10px] text-outline font-mono">ID: {p.id.split('-')[0]}</p>
                         </div>
                       </div>
                     </td>
                     <td className="py-4 px-4">
-                      <span className="text-xs font-semibold px-2 py-1 rounded-full bg-primary/5 text-primary border border-primary/10">
-                        {p.category}
-                      </span>
+                      <span className="text-sm text-on-surface-variant">{p.grower_name || '—'}</span>
                     </td>
                     <td className="py-4 px-4">
-                      <div className="text-sm font-semibold text-on-surface">₹{p.price}</div>
-                      {p.mrp > p.price && (
-                        <div className="text-xs text-on-surface-variant line-through">₹{p.mrp}</div>
+                      {p.category ? (
+                        <span className="text-xs font-semibold px-2 py-1 rounded-full bg-primary/5 text-primary border border-primary/10">
+                          {p.category}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-outline">—</span>
                       )}
                     </td>
                     <td className="py-4 px-4">
-                      <span className={`text-xs font-semibold flex items-center gap-1.5 ${p.in_stock ? 'text-secondary' : 'text-error'}`}>
-                        <span className={`w-2 h-2 rounded-full ${p.in_stock ? 'bg-secondary' : 'bg-error'}`} />
-                        {p.in_stock ? 'In Stock' : 'Out of Stock'}
-                      </span>
+                      <div className="text-sm font-semibold text-on-surface">₹{p.mrp}</div>
                     </td>
                     <td className="py-4 px-4">
                       <div className="flex items-center gap-1">
@@ -308,7 +300,7 @@ export const ProductsScreen: React.FC<ProductsScreenProps> = () => {
             <div className="flex flex-col gap-4">
               <div className="relative">
                 <label className="text-xs font-semibold text-on-surface-variant mb-1 block flex items-center justify-between">
-                  <span>Product Name</span>
+                  <span>Medicine Name <span className="text-error">*</span></span>
                   {catalogSearchLoading && <Loader2 className="w-3 h-3 animate-spin text-primary" />}
                 </label>
                 <input 
@@ -342,81 +334,30 @@ export const ProductsScreen: React.FC<ProductsScreenProps> = () => {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-xs font-semibold text-on-surface-variant mb-1 block">Generic Name</label>
+                  <label className="text-xs font-semibold text-on-surface-variant mb-1 block">Generic / Composition</label>
                   <input value={form.generic_name} onChange={(e) => setForm({ ...form, generic_name: e.target.value })} className={inputCls} />
                 </div>
                 <div>
+                  <label className="text-xs font-semibold text-on-surface-variant mb-1 block">Company</label>
+                  <input value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} className={inputCls} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
                   <label className="text-xs font-semibold text-on-surface-variant mb-1 block">Category</label>
                   <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className={inputCls + ' cursor-pointer'}>
+                    <option value="">None</option>
                     {categories.filter(c => c !== 'All').map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-xs font-semibold text-on-surface-variant mb-1 block">Dosage</label>
-                  <input value={form.dosage} onChange={(e) => setForm({ ...form, dosage: e.target.value })} placeholder="e.g. 500mg" className={inputCls} />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-on-surface-variant mb-1 block">Form</label>
-                  <select value={form.form} onChange={(e) => setForm({ ...form, form: e.target.value })} className={inputCls + ' cursor-pointer'}>
-                    {forms.map(f => <option key={f} value={f}>{f}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-semibold text-on-surface-variant mb-1 block">Price (₹)</label>
-                  <input type="number" value={form.price} onChange={(e) => setForm({ ...form, price: Number(e.target.value) })} className={inputCls} />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-on-surface-variant mb-1 block">MRP (₹)</label>
+                  <label className="text-xs font-semibold text-on-surface-variant mb-1 block">MRP (₹) <span className="text-error">*</span></label>
                   <input type="number" value={form.mrp} onChange={(e) => setForm({ ...form, mrp: Number(e.target.value) })} className={inputCls} />
                 </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-semibold text-on-surface-variant mb-1 block">Grower / Lab Name</label>
-                  <input value={form.grower_name} onChange={(e) => setForm({ ...form, grower_name: e.target.value })} className={inputCls} />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-on-surface-variant mb-1 block">Grower Location</label>
-                  <input value={form.grower_location} onChange={(e) => setForm({ ...form, grower_location: e.target.value })} className={inputCls} />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-semibold text-on-surface-variant mb-1 block">Batch Number</label>
-                  <input value={form.batch_number} onChange={(e) => setForm({ ...form, batch_number: e.target.value })} className={inputCls} />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-on-surface-variant mb-1 block">Harvest Date</label>
-                  <input type="date" value={form.harvest_date} onChange={(e) => setForm({ ...form, harvest_date: e.target.value })} className={inputCls} />
-                </div>
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-on-surface-variant mb-1 block">Image URL</label>
-                <input value={form.image_url} onChange={(e) => setForm({ ...form, image_url: e.target.value })} placeholder="https://..." className={inputCls} />
               </div>
               <div>
                 <label className="text-xs font-semibold text-on-surface-variant mb-1 block">Description</label>
                 <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} className={inputCls + ' resize-none'} />
-              </div>
-              <div className="flex items-center gap-6">
-                <div className="flex items-center gap-3">
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input type="checkbox" checked={form.in_stock} onChange={(e) => setForm({ ...form, in_stock: e.target.checked })} className="sr-only peer" />
-                    <div className="w-9 h-5 bg-outline-variant rounded-full peer peer-checked:bg-primary transition-colors after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full" />
-                  </label>
-                  <span className="text-sm text-on-surface-variant">In Stock</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input type="checkbox" checked={form.requires_prescription} onChange={(e) => setForm({ ...form, requires_prescription: e.target.checked })} className="sr-only peer" />
-                    <div className="w-9 h-5 bg-outline-variant rounded-full peer peer-checked:bg-primary transition-colors after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full" />
-                  </label>
-                  <span className="text-sm text-on-surface-variant">Requires Rx</span>
-                </div>
               </div>
               <button
                 onClick={handleSave}
