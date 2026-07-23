@@ -935,17 +935,7 @@ export const OrdersScreen: React.FC<OrdersScreenProps> = () => {
                         mrp: it.mrp,
                         category: null,
                         description: 'auto-added',
-                        dosage: '',
-                        form: 'Tablet',
-                        in_stock: true,
-                        requires_prescription: true,
                         grower_name: '',
-                        grower_location: '',
-                        grower_certification: '',
-                        grower_purity_score: 0,
-                        batch_number: '',
-                        harvest_date: '',
-                        image_url: null,
                       });
                     }
                   }
