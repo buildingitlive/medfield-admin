@@ -746,7 +746,7 @@ export const OrdersScreen: React.FC<OrdersScreenProps> = () => {
               </div>
 
               {/* Medicine Table */}
-              <div className="border border-outline-variant/30 rounded-xl overflow-hidden">
+              <div className="border border-outline-variant/30 rounded-xl overflow-visible">
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-surface-container-low/30 border-b border-outline-variant/30">
