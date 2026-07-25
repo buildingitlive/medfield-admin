@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Search, ChevronLeft, ChevronRight, MoreVertical, X, ArrowUp, ArrowDown, MapPin, Package, CheckCircle, Info, Plus, Loader2, FileText, Pill, Trash2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { QuantityWheel } from '../components/QuantityWheel';
 
 interface OrdersScreenProps {
   onNavigate: (route: string) => void;
@@ -62,7 +63,7 @@ export const OrdersScreen: React.FC<OrdersScreenProps> = () => {
   // Confirm Order Popup
   const [confirmModal, setConfirmModal] = useState<Order | null>(null);
   const [confirmDiscount, setConfirmDiscount] = useState(0);
-  const [confirmItems, setConfirmItems] = useState<{ medicine_name: string; company: string; quantity: number; mrp: number }[]>([]);
+  const [confirmItems, setConfirmItems] = useState<{ medicine_name: string; company: string; quantity: number | ''; mrp: number | '' }[]>([]);
   const [confirmLoading, setConfirmLoading] = useState(false);
   const [_autoCompleteQuery, setAutoCompleteQuery] = useState('');
   const [autoCompleteResults, setAutoCompleteResults] = useState<any[]>([]);
@@ -760,7 +761,9 @@ export const OrdersScreen: React.FC<OrdersScreenProps> = () => {
                   </thead>
                   <tbody>
                     {confirmItems.map((item, idx) => {
-                      const discountedPrice = item.mrp * item.quantity * (1 - confirmDiscount / 100);
+                      const q = Number(item.quantity) || 0;
+                      const m = Number(item.mrp) || 0;
+                      const discountedPrice = m * q * (1 - confirmDiscount / 100);
                       return (
                         <tr key={idx} className="border-b border-outline-variant/20 last:border-0">
                           <td className="py-2 px-3 relative">
@@ -823,12 +826,9 @@ export const OrdersScreen: React.FC<OrdersScreenProps> = () => {
                             />
                           </td>
                           <td className="py-2 px-3 text-center">
-                            <input
-                              type="number"
-                              min="1"
+                            <QuantityWheel 
                               value={item.quantity}
-                              onChange={(e) => setConfirmItems(prev => prev.map((it, i) => i === idx ? { ...it, quantity: parseInt(e.target.value) || 1 } : it))}
-                              className="w-14 py-1.5 px-2 bg-surface border border-outline-variant rounded text-sm text-on-surface text-center focus:outline-none focus:border-primary mx-auto"
+                              onChange={(val) => setConfirmItems(prev => prev.map((it, i) => i === idx ? { ...it, quantity: val } : it))}
                             />
                           </td>
                           <td className="py-2 px-3 text-right">
@@ -837,7 +837,11 @@ export const OrdersScreen: React.FC<OrdersScreenProps> = () => {
                               min="0"
                               step="0.01"
                               value={item.mrp}
-                              onChange={(e) => setConfirmItems(prev => prev.map((it, i) => i === idx ? { ...it, mrp: parseFloat(e.target.value) || 0 } : it))}
+                              onFocus={(e) => e.target.select()}
+                              onChange={(e) => {
+                                const val = parseFloat(e.target.value);
+                                setConfirmItems(prev => prev.map((it, i) => i === idx ? { ...it, mrp: isNaN(val) ? '' : val } : it));
+                              }}
                               className="w-20 py-1.5 px-2 bg-surface border border-outline-variant rounded text-sm text-on-surface text-right focus:outline-none focus:border-primary ml-auto"
                             />
                           </td>
@@ -876,7 +880,7 @@ export const OrdersScreen: React.FC<OrdersScreenProps> = () => {
               <div className="bg-surface-container-low/30 p-4 rounded-xl border border-outline-variant/30 flex justify-between items-center">
                 <span className="text-sm font-semibold text-on-surface">Total Price</span>
                 <span className="text-2xl font-bold text-primary">
-                  ₹{confirmItems.reduce((sum, it) => sum + (it.mrp * it.quantity * (1 - confirmDiscount / 100)), 0).toFixed(2)}
+                  ₹{confirmItems.reduce((sum, it) => sum + ((Number(it.mrp) || 0) * (Number(it.quantity) || 0) * (1 - confirmDiscount / 100)), 0).toFixed(2)}
                 </span>
               </div>
             </div>
@@ -896,19 +900,19 @@ export const OrdersScreen: React.FC<OrdersScreenProps> = () => {
                   setConfirmLoading(true);
 
                   const validItems = confirmItems.filter(it => it.medicine_name.trim());
-                  const totalPrice = validItems.reduce((sum, it) => sum + (it.mrp * it.quantity * (1 - confirmDiscount / 100)), 0);
+                  const totalPrice = validItems.reduce((sum, it) => sum + (Number(it.mrp) * Number(it.quantity) * (1 - confirmDiscount / 100)), 0);
 
                   // 1. Insert confirmed items
-                  const { error: itemsErr } = await supabase.from('order_confirmed_items').insert(
-                    validItems.map(it => ({
-                      order_id: confirmModal.id,
-                      medicine_name: it.medicine_name,
-                      company: it.company || null,
-                      quantity: it.quantity,
-                      mrp: it.mrp,
-                      price: it.mrp * it.quantity * (1 - confirmDiscount / 100),
-                    }))
-                  );
+                  const confirmPayload = validItems.map(it => ({
+                    order_id: confirmModal.id,
+                    medicine_name: it.medicine_name,
+                    company: it.company || null,
+                    quantity: Number(it.quantity),
+                    mrp: Number(it.mrp),
+                    price: Number(it.mrp) * Number(it.quantity) * (1 - confirmDiscount / 100),
+                  }));
+                  
+                  const { error: itemsErr } = await supabase.from('order_confirmed_items').insert(confirmPayload);
                   if (itemsErr) { alert('Error saving items: ' + itemsErr.message); setConfirmLoading(false); return; }
 
                   // 2. Upsert into admin_products (self-growing catalog)
@@ -931,8 +935,8 @@ export const OrdersScreen: React.FC<OrdersScreenProps> = () => {
                       await supabase.from('products').insert({
                         name: it.medicine_name,
                         generic_name: it.company || '',
-                        price: it.mrp * (1 - confirmDiscount / 100),
-                        mrp: it.mrp,
+                        price: (Number(it.mrp) || 0) * (1 - confirmDiscount / 100),
+                        mrp: Number(it.mrp) || 0,
                         category: null,
                         description: 'auto-added',
                         grower_name: '',

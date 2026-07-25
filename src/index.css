@@ -106,3 +106,12 @@
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #c0c9bb; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #717a6d; }
+
+/* Hide scrollbar for wheel pickers */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
