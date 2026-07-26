@@ -12,6 +12,7 @@ interface PartnerOrder {
   id: string;
   created_at: string;
   total: number;
+  discount_percent?: number;
   status: string;
   user_id: string;
   items: any[];
@@ -36,7 +37,7 @@ export const PartnerDashboardScreen: React.FC<PartnerDashboardScreenProps> = () 
     setLoading(true);
     const { data, error } = await supabase
       .from('orders')
-      .select('id, created_at, total, status, user_id, items:order_items(*), address_snapshot')
+      .select('id, created_at, total, discount_percent, status, user_id, items:order_confirmed_items(*), address_snapshot')
       .eq('assigned_partner_id', partnerProfile?.id)
       .order('created_at', { ascending: false });
     
@@ -116,7 +117,9 @@ export const PartnerDashboardScreen: React.FC<PartnerDashboardScreenProps> = () 
   const pendingOrders = orders.filter(o => o.status !== 'Delivered' && o.status !== 'cancelled' && o.status !== 'Cancelled');
   const historyOrders = orders.filter(o => o.status === 'Delivered' || o.status === 'cancelled' || o.status === 'Cancelled');
   const totalCustomers = new Set(orders.map(o => o.user_id)).size;
+  const marginShare = partnerProfile?.margin_share || 0;
   const totalSales = orders.filter(o => o.status === 'Delivered').reduce((acc, o) => acc + (o.total || 0), 0);
+  const revenueAfterMargin = totalSales * (1 - (marginShare / 100));
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -178,10 +181,10 @@ export const PartnerDashboardScreen: React.FC<PartnerDashboardScreenProps> = () 
         <div className="p-5 border-b border-outline-variant/20">
           <div className="flex items-center gap-3 mb-3">
             <div className="w-10 h-10 rounded-full bg-primary-container text-on-primary-container font-bold text-sm flex items-center justify-center shrink-0">
-              {order.user_id.charAt(0).toUpperCase()}
+              {(order.address_snapshot?.name || order.address_snapshot?.recipient_name || order.profiles?.name || order.user_id).charAt(0).toUpperCase()}
             </div>
             <div className="flex-1 truncate">
-              <p className="text-sm font-semibold text-on-surface truncate">{order.profiles?.name || order.user_id.split('-')[0]}</p>
+              <p className="text-sm font-semibold text-on-surface truncate">{order.address_snapshot?.name || order.address_snapshot?.recipient_name || order.profiles?.name || order.user_id.split('-')[0]}</p>
               {order.address_snapshot?.phone && (
                 <p className="text-xs font-mono text-on-surface-variant">{order.address_snapshot.phone}</p>
               )}
@@ -211,18 +214,46 @@ export const PartnerDashboardScreen: React.FC<PartnerDashboardScreenProps> = () 
           <h4 className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-3">Order Items</h4>
           <div className="flex flex-col gap-2.5">
             {Array.isArray(order.items) && order.items.map((item: any, i: number) => (
-              <div key={i} className="flex justify-between text-sm items-center">
-                <span className="text-on-surface flex items-center gap-2">
-                  <span className="w-6 h-6 rounded-md bg-surface-container flex items-center justify-center text-xs font-bold text-on-surface-variant">x{item.quantity}</span>
-                  <span>{item.product_snapshot?.name || item.name}</span>
-                </span>
-                <span className="text-on-surface font-medium">₹{((item.unit_price || item.price || 0) * (item.quantity || 1)).toLocaleString('en-IN')}</span>
+              <div key={i} className="flex flex-col gap-1 text-sm pb-2 border-b border-outline-variant/10 last:border-0 last:pb-0">
+                <div className="flex justify-between items-start">
+                  <span className="text-on-surface font-medium flex items-start gap-2">
+                    <span className="w-5 h-5 rounded bg-surface-container flex items-center justify-center text-[10px] font-bold text-on-surface-variant mt-0.5 shrink-0">x{item.quantity}</span>
+                    <span>
+                      {item.medicine_name}
+                      {item.company && <span className="block text-xs text-on-surface-variant font-normal">{item.company}</span>}
+                    </span>
+                  </span>
+                  <span className="text-on-surface font-medium whitespace-nowrap ml-2">₹{(item.mrp * item.quantity).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-xs text-on-surface-variant pl-7">
+                  <span>MRP: ₹{item.mrp.toFixed(2)} / item</span>
+                </div>
               </div>
             ))}
           </div>
-          <div className="flex justify-between mt-4 pt-3 border-t border-outline-variant/20">
-            <span className="text-sm font-semibold text-on-surface">Total Amount</span>
-            <span className="text-base font-bold text-primary">₹{(order.total || 0).toLocaleString('en-IN')}</span>
+          
+          <div className="mt-4 pt-3 border-t border-outline-variant/20 space-y-1.5">
+            {order.discount_percent && order.discount_percent > 0 ? (
+              <>
+                <div className="flex justify-between text-xs text-on-surface-variant">
+                  <span>Subtotal</span>
+                  <span>₹{(order.total / (1 - order.discount_percent / 100)).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-xs text-primary">
+                  <span>Discount ({order.discount_percent}%)</span>
+                  <span>- ₹{((order.total / (1 - order.discount_percent / 100)) - order.total).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between pt-1.5 border-t border-outline-variant/10">
+                  <span className="text-sm font-semibold text-on-surface">Total Amount</span>
+                  <span className="text-base font-bold text-primary">₹{(order.total || 0).toFixed(2)}</span>
+                </div>
+              </>
+            ) : (
+              <div className="flex justify-between pt-1">
+                <span className="text-sm font-semibold text-on-surface">Total Amount</span>
+                <span className="text-base font-bold text-primary">₹{(order.total || 0).toFixed(2)}</span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -289,8 +320,8 @@ export const PartnerDashboardScreen: React.FC<PartnerDashboardScreenProps> = () 
             <span className="text-xs font-semibold text-primary uppercase tracking-wider">Total Sales Delivered</span>
             <IndianRupee className="w-5 h-5 text-primary" />
           </div>
-          <div className="text-3xl font-semibold text-on-surface">{loading ? '...' : `₹${totalSales.toLocaleString('en-IN')}`}</div>
-          <p className="text-xs text-on-surface-variant mt-1">From completed deliveries</p>
+          <div className="text-3xl font-semibold text-on-surface">{loading ? '...' : `₹${revenueAfterMargin.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`}</div>
+          <p className="text-xs text-on-surface-variant mt-1">From completed deliveries (Margin deducted)</p>
         </div>
         <div className="bg-surface-container-lowest rounded-xl shadow-sm border-l-4 border-l-secondary border border-outline-variant/30 p-5 sm:p-6">
           <div className="flex justify-between items-start mb-3">
@@ -356,7 +387,7 @@ export const PartnerDashboardScreen: React.FC<PartnerDashboardScreenProps> = () 
                   </span>
                 </div>
                 <h3 className="text-base font-semibold text-on-surface mb-2 truncate">
-                  {order.profiles?.name || order.user_id.split('-')[0]}
+                  {order.address_snapshot?.name || order.address_snapshot?.recipient_name || order.profiles?.name || order.user_id.split('-')[0]}
                 </h3>
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-on-surface-variant">
                   <span className="flex items-center gap-1"><Clock className="w-3 h-3 text-primary" /> {new Date(order.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>

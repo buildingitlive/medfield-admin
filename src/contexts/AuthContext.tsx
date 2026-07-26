@@ -12,6 +12,7 @@ interface PartnerProfile {
   region: string;
   city: string;
   is_active: boolean;
+  margin_share?: number;
 }
 
 interface AdminProfile {
