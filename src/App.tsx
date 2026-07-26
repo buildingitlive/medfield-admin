@@ -11,6 +11,7 @@ import { BannersScreen } from './screens/BannersScreen';
 import { PartnersScreen } from './screens/PartnersScreen';
 import { PushNotificationsScreen } from './screens/PushNotificationsScreen';
 import { PartnerDashboardScreen } from './screens/PartnerDashboardScreen';
+import { usePushNotification } from './hooks/usePushNotification';
 import { Loader2 } from 'lucide-react';
 import './index.css';
 
@@ -24,6 +25,9 @@ function getRoute(): string {
 
 function AppContent() {
   const { user, role, loading } = useAuth();
+  
+  usePushNotification();
+
   const [route, setRouteState] = useState(getRoute);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
