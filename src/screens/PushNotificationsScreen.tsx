@@ -426,7 +426,7 @@ export const PushNotificationsScreen: React.FC<PushNotificationsScreenProps> = (
                 <p className="text-sm font-semibold text-on-surface">No notifications broadcast yet</p>
               </div>
             ) : (
-              <div className="space-y-3 overflow-y-auto max-h-[520px] pr-1">
+              <div className="space-y-3 overflow-y-auto flex-1 min-h-[400px] pr-1">
                 {history.map((item) => (
                   <div key={item.id} className="p-4 rounded-xl border border-outline-variant/30 bg-surface/50 hover:bg-surface transition-colors">
                     <div className="space-y-1">
@@ -567,7 +567,7 @@ export const PushNotificationsScreen: React.FC<PushNotificationsScreenProps> = (
                 <p className="text-sm font-semibold text-on-surface">No notifications broadcast yet</p>
               </div>
             ) : (
-              <div className="space-y-3 overflow-y-auto max-h-[520px] pr-1">
+              <div className="space-y-3 overflow-y-auto flex-1 min-h-[400px] pr-1">
                 {history.map((item) => (
                   <div key={item.id} className="p-4 rounded-xl border border-outline-variant/30 bg-surface/50 hover:bg-surface transition-colors">
                     <div className="space-y-1">
@@ -652,7 +652,7 @@ export const PushNotificationsScreen: React.FC<PushNotificationsScreenProps> = (
                 <p className="text-xs mt-1">Go to the Campaign Maker tab to create your first scheduled or one-time campaign.</p>
               </div>
             ) : (
-              <div className="space-y-3 overflow-y-auto max-h-[520px] pr-1">
+              <div className="space-y-3 overflow-y-auto flex-1 min-h-[400px] pr-1">
                 {campaigns.map((c) => (
                   <div key={c.id} className={`p-4 rounded-xl border transition-colors ${c.is_active ? 'border-outline-variant/30 bg-surface/50 hover:bg-surface' : 'border-outline-variant/20 bg-surface-variant/20 opacity-60'}`}>
                     <div className="flex items-start justify-between gap-3">
