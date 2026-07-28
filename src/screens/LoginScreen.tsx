@@ -3,11 +3,13 @@ import { Mail, Lock, Loader2, Shield, Phone } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 export const LoginScreen: React.FC = () => {
-  const { signIn } = useAuth();
+  const { signIn, resetPassword } = useAuth();
+  const [mode, setMode] = useState<'LOGIN' | 'FORGOT_PASSWORD'>('LOGIN');
   const [emailOrPhone, setEmailOrPhone] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -16,6 +18,25 @@ export const LoginScreen: React.FC = () => {
 
     const { error: err } = await signIn(emailOrPhone, password);
     if (err) setError(err);
+    setLoading(false);
+  };
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!emailOrPhone.includes('@')) {
+      setError('Please enter a valid email address to reset your password.');
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    setSuccess(null);
+
+    const { error: err } = await resetPassword(emailOrPhone);
+    if (err) {
+      setError(err);
+    } else {
+      setSuccess('Check your email for the reset link!');
+    }
     setLoading(false);
   };
 
@@ -38,9 +59,20 @@ export const LoginScreen: React.FC = () => {
                 src="/logo.png"
               />
             </div>
-            <h1 className="text-[28px] leading-[36px] font-semibold text-primary tracking-tight">Admin & Partner Portal</h1>
-            <p className="text-xs text-on-surface-variant mt-1">Sign in with your email address or phone number.</p>
+            <h1 className="text-[28px] leading-[36px] font-semibold text-primary tracking-tight">
+              {mode === 'LOGIN' ? 'Admin & Partner Portal' : 'Reset Password'}
+            </h1>
+            <p className="text-xs text-on-surface-variant mt-1">
+              {mode === 'LOGIN' ? 'Sign in with your email address or phone number.' : 'Enter your email address to receive a reset link.'}
+            </p>
           </div>
+
+          {/* Success Message */}
+          {success && (
+            <div className="w-full mb-4 p-3 bg-secondary-container/50 text-on-secondary-container rounded-lg text-xs font-medium">
+              {success}
+            </div>
+          )}
 
           {/* Error Message */}
           {error && (
@@ -50,7 +82,7 @@ export const LoginScreen: React.FC = () => {
           )}
 
           {/* Form */}
-          <form onSubmit={handleSubmit} className="w-full flex flex-col gap-4">
+          <form onSubmit={mode === 'LOGIN' ? handleSubmit : handleForgotPassword} className="w-full flex flex-col gap-4">
             {/* Email or Phone */}
             <div className="flex flex-col gap-1">
               <label className="text-xs font-semibold tracking-wider text-on-surface-variant" htmlFor="emailOrPhone">
@@ -75,12 +107,21 @@ export const LoginScreen: React.FC = () => {
             </div>
 
             {/* Password */}
+            {mode === 'LOGIN' && (
             <div className="flex flex-col gap-1">
               <div className="flex justify-between items-center">
                 <label className="text-xs font-semibold tracking-wider text-on-surface-variant" htmlFor="password">
                   Password
                 </label>
-                <button type="button" className="text-xs font-semibold text-primary hover:text-primary-container transition-colors">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode('FORGOT_PASSWORD');
+                    setError(null);
+                    setSuccess(null);
+                  }}
+                  className="text-xs font-semibold text-primary hover:text-primary-container transition-colors"
+                >
                   Forgot?
                 </button>
               </div>
@@ -97,6 +138,7 @@ export const LoginScreen: React.FC = () => {
                 />
               </div>
             </div>
+            )}
 
             {/* Submit */}
             <button
@@ -104,9 +146,26 @@ export const LoginScreen: React.FC = () => {
               disabled={loading}
               className="mt-2 w-full bg-primary text-on-primary font-semibold text-sm h-[44px] rounded-lg shadow-sm hover:bg-primary-container hover:shadow-md hover:-translate-y-[1px] active:translate-y-[0px] active:shadow-sm transition-all duration-150 flex items-center justify-center gap-2 disabled:opacity-60"
             >
-              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Sign In'}
+              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : mode === 'LOGIN' ? 'Sign In' : 'Send Reset Link'}
             </button>
           </form>
+
+          {/* Toggle Login */}
+          {mode === 'FORGOT_PASSWORD' && (
+            <div className="mt-4 w-full flex justify-center">
+              <button
+                type="button"
+                onClick={() => {
+                  setMode('LOGIN');
+                  setError(null);
+                  setSuccess(null);
+                }}
+                className="text-xs font-semibold text-primary hover:text-primary-container transition-colors"
+              >
+                Back to Sign In
+              </button>
+            </div>
+          )}
 
           {/* Footer Security Note */}
           <div className="mt-6 pt-4 border-t border-outline-variant/30 w-full text-center">

@@ -11,16 +11,16 @@ import { BannersScreen } from './screens/BannersScreen';
 import { PartnersScreen } from './screens/PartnersScreen';
 import { PushNotificationsScreen } from './screens/PushNotificationsScreen';
 import { PartnerDashboardScreen } from './screens/PartnerDashboardScreen';
+import { NotFoundScreen } from './screens/NotFoundScreen';
+import { UpdatePasswordScreen } from './screens/UpdatePasswordScreen';
 import { usePushNotification } from './hooks/usePushNotification';
 import { Loader2 } from 'lucide-react';
 import './index.css';
 
 function getRoute(): string {
   const path = window.location.pathname;
-  if (['/dashboard', '/orders', '/users', '/products', '/banners', '/partners', '/notifications', '/settings'].includes(path)) {
-    return path;
-  }
-  return '/dashboard';
+  if (path === '/update-password') return path;
+  return window.location.pathname;
 }
 
 function AppContent() {
@@ -58,8 +58,11 @@ function AppContent() {
     );
   }
 
-  // Not logged in
+  // Not logged in (allow update-password route to render)
   if (!user || !role) {
+    if (route === '/update-password') {
+      return <UpdatePasswordScreen onNavigate={navigate} />;
+    }
     return <LoginScreen />;
   }
 
@@ -94,7 +97,7 @@ function AppContent() {
       case '/notifications':
         return <PushNotificationsScreen onNavigate={navigate} />;
       default:
-        return <DashboardScreen onNavigate={navigate} />;
+        return <NotFoundScreen onNavigate={navigate} />;
     }
   };
 
