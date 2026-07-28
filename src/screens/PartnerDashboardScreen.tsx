@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Package, Clock, MapPin, Phone, X, Loader2, History, CheckCircle2, Ban, IndianRupee, Users } from 'lucide-react';
+import { Package, Clock, MapPin, Phone, X, Loader2, History, CheckCircle2, IndianRupee, Users, FileText } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
@@ -17,6 +17,7 @@ interface PartnerOrder {
   user_id: string;
   items: any[];
   address_snapshot: any;
+  prescription_url?: string | null;
   profiles?: { name: string; phone: string; email: string } | null;
 }
 
@@ -37,7 +38,7 @@ export const PartnerDashboardScreen: React.FC<PartnerDashboardScreenProps> = () 
     setLoading(true);
     const { data, error } = await supabase
       .from('orders')
-      .select('id, created_at, total, discount_percent, status, user_id, items:order_confirmed_items(*), address_snapshot')
+      .select('id, created_at, total, discount_percent, status, user_id, items:order_confirmed_items(*), address_snapshot, prescription_url')
       .eq('assigned_partner_id', partnerProfile?.id)
       .order('created_at', { ascending: false });
     
@@ -81,38 +82,7 @@ export const PartnerDashboardScreen: React.FC<PartnerDashboardScreenProps> = () 
     loadOrders();
   };
 
-  const cancelOrder = async (orderId: string) => {
-    if (!window.confirm("Are you sure you want to cancel this delivery order?")) return;
-    setMarking(true);
-    await supabase.from('orders').update({ status: 'cancelled' }).eq('id', orderId);
-    
-    // Emit notifications
-    const targetOrder = orders.find(o => o.id === orderId);
-    const shortId = orderId.split('-')[0];
-    await supabase.from('notifications').insert([
-      {
-        recipient_type: 'admin',
-        title: `Order #${shortId} Cancelled by Partner`,
-        description: `Order delivery was cancelled by partner ${partnerProfile?.name || 'Partner'}.`,
-        type: 'order_cancelled',
-        link: '/orders',
-        is_read: false
-      },
-      {
-        recipient_type: 'user',
-        recipient_id: targetOrder?.user_id || null,
-        title: 'Order Cancelled ❌',
-        description: `Your order #${shortId} was cancelled by the delivery partner. Please contact support if you need assistance.`,
-        type: 'order_cancelled',
-        link: '/orders',
-        is_read: false
-      }
-    ]);
 
-    setMarking(false);
-    setSelectedOrder(null);
-    loadOrders();
-  };
 
   const pendingOrders = orders.filter(o => o.status !== 'Delivered' && o.status !== 'cancelled' && o.status !== 'Cancelled');
   const historyOrders = orders.filter(o => o.status === 'Delivered' || o.status === 'cancelled' || o.status === 'Cancelled');
@@ -155,7 +125,7 @@ export const PartnerDashboardScreen: React.FC<PartnerDashboardScreenProps> = () 
           <div className={`p-3 text-xs font-semibold flex items-center justify-center gap-2 border-b border-outline-variant/20 ${
             order.status === 'Delivered' ? 'bg-secondary/10 text-secondary' : 'bg-error/10 text-error'
           }`}>
-            {order.status === 'Delivered' ? <CheckCircle2 className="w-4 h-4" /> : <Ban className="w-4 h-4" />}
+            {order.status === 'Delivered' ? <CheckCircle2 className="w-4 h-4" /> : <X className="w-4 h-4" />}
             Status: {order.status} ({new Date(order.created_at).toLocaleDateString('en-IN')})
           </div>
         )}
@@ -257,6 +227,37 @@ export const PartnerDashboardScreen: React.FC<PartnerDashboardScreenProps> = () 
           </div>
         </div>
 
+        {/* Prescription if attached */}
+        {order.prescription_url && (
+          <div className="p-5 border-b border-outline-variant/20">
+            <h4 className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-3 flex items-center gap-1.5">
+              <FileText className="w-3.5 h-3.5" /> Prescription
+            </h4>
+            <div className="flex items-start gap-3 p-3 bg-surface-container-low rounded-xl border border-outline-variant/30">
+              <div
+                className="w-20 h-20 rounded-lg overflow-hidden border border-outline-variant/30 bg-white flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
+                onClick={() => window.open(supabase.storage.from('prescriptions').getPublicUrl(order.prescription_url!).data.publicUrl, '_blank')}
+              >
+                <img
+                  src={supabase.storage.from('prescriptions').getPublicUrl(order.prescription_url!).data.publicUrl}
+                  alt="Prescription"
+                  className="w-full h-full object-cover"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-on-surface-variant break-all mb-1.5">{order.prescription_url.split('/').pop()}</p>
+                <button
+                  onClick={() => window.open(supabase.storage.from('prescriptions').getPublicUrl(order.prescription_url!).data.publicUrl, '_blank')}
+                  className="text-xs text-primary font-semibold hover:underline"
+                >
+                  View Full Image →
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Actions for Active Orders */}
         {isActive ? (
           <div className="p-5 space-y-3">
@@ -276,13 +277,6 @@ export const PartnerDashboardScreen: React.FC<PartnerDashboardScreenProps> = () 
               className="w-full bg-primary text-on-primary font-semibold text-sm py-3 rounded-xl hover:bg-primary-container transition-colors flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
             >
               {marking ? <Loader2 className="w-4 h-4 animate-spin" /> : <> <CheckCircle2 className="w-4 h-4" /> Mark as Delivered </>}
-            </button>
-            <button
-              onClick={() => cancelOrder(order.id)}
-              disabled={marking}
-              className="w-full py-2.5 px-4 rounded-xl border border-error/40 text-error font-semibold text-xs hover:bg-error/5 transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
-            >
-              <Ban className="w-3.5 h-3.5" /> Cancel Order
             </button>
           </div>
         ) : (

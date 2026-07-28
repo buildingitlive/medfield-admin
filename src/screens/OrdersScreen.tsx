@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Search, ChevronLeft, ChevronRight, MoreVertical, X, ArrowUp, ArrowDown, MapPin, Package, CheckCircle, Info, Plus, Loader2, FileText, Pill, Trash2 } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight, MoreVertical, X, ArrowUp, ArrowDown, MapPin, Package, CheckCircle, Info, Plus, Loader2, FileText, Pill, Trash2, Ban } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { QuantityWheel } from '../components/QuantityWheel';
 
@@ -68,6 +68,11 @@ export const OrdersScreen: React.FC<OrdersScreenProps> = () => {
   const [_autoCompleteQuery, setAutoCompleteQuery] = useState('');
   const [autoCompleteResults, setAutoCompleteResults] = useState<any[]>([]);
   const [activeAutoCompleteIdx, setActiveAutoCompleteIdx] = useState<number | null>(null);
+
+  // Cancel Order
+  const [cancelModal, setCancelModal] = useState<Order | null>(null);
+  const [cancelReason, setCancelReason] = useState('');
+  const [cancelLoading, setCancelLoading] = useState(false);
 
   useEffect(() => {
     loadOrders();
@@ -170,6 +175,50 @@ export const OrdersScreen: React.FC<OrdersScreenProps> = () => {
       setSortField(field);
       setSortDirection('asc'); // Default when changing field
     }
+  };
+
+  const cancelOrder = async () => {
+    if (!cancelModal) return;
+    setCancelLoading(true);
+    const orderId = cancelModal.id;
+    const shortId = orderId.split('-')[0];
+    const reason = cancelReason.trim() || 'No reason specified';
+
+    await supabase.from('orders').update({ status: 'Cancelled', notes: `[Cancelled] ${reason}` }).eq('id', orderId);
+
+    // Notify customer and admin log
+    const notifs: any[] = [
+      {
+        recipient_type: 'user',
+        recipient_id: cancelModal.user_id,
+        title: 'Order Cancelled',
+        description: `Your order #${shortId} has been cancelled. Reason: ${reason}`,
+        type: 'order_cancelled',
+        link: '/orders',
+        is_read: false
+      }
+    ];
+
+    // Notify partner if assigned
+    if (cancelModal.assigned_partner_id) {
+      notifs.push({
+        recipient_type: 'partner',
+        recipient_id: cancelModal.assigned_partner_id,
+        title: `Order #${shortId} Cancelled`,
+        description: `Order #${shortId} has been cancelled by admin. Reason: ${reason}`,
+        type: 'order_cancelled',
+        link: '/',
+        is_read: false
+      });
+    }
+
+    await supabase.from('notifications').insert(notifs);
+
+    setCancelLoading(false);
+    setCancelModal(null);
+    setCancelReason('');
+    setDetailsModal(null);
+    loadOrders();
   };
 
   const getStatusBadge = (status: string) => {
@@ -704,6 +753,16 @@ export const OrdersScreen: React.FC<OrdersScreenProps> = () => {
                 </div>
               </div>
 
+              {/* Cancel Order Button — only show for non-cancelled, non-delivered orders */}
+              {detailsModal.status !== 'Cancelled' && detailsModal.status !== 'cancelled' && detailsModal.status !== 'Delivered' && detailsModal.status !== 'delivered' && (
+                <button
+                  onClick={() => { setCancelModal(detailsModal); setDetailsModal(null); }}
+                  className="w-full py-3 rounded-xl border border-error/40 text-error font-semibold text-sm hover:bg-error/5 transition-colors flex items-center justify-center gap-2"
+                >
+                  <Ban className="w-4 h-4" /> Cancel This Order
+                </button>
+              )}
+
             </div>
           </div>
         </div>,
@@ -981,6 +1040,69 @@ export const OrdersScreen: React.FC<OrdersScreenProps> = () => {
               >
                 {confirmLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
                 <span>Confirm Order</span>
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ═══════════════════════════════════════════════ */}
+      {/* CANCEL ORDER MODAL                             */}
+      {/* ═══════════════════════════════════════════════ */}
+      {cancelModal && createPortal(
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => { setCancelModal(null); setCancelReason(''); }}>
+          <div
+            className="bg-surface-container-lowest rounded-2xl shadow-2xl w-full max-w-md"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-outline-variant/30 flex justify-between items-center">
+              <div>
+                <h2 className="text-lg font-semibold text-error flex items-center gap-2">
+                  <Ban className="w-5 h-5" /> Cancel Order
+                </h2>
+                <p className="text-xs text-on-surface-variant mt-0.5">Order #{cancelModal.id.split('-')[0]}</p>
+              </div>
+              <button onClick={() => { setCancelModal(null); setCancelReason(''); }} className="p-2 hover:bg-surface-container rounded-full transition-colors">
+                <X className="w-5 h-5 text-on-surface-variant" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-6 space-y-4">
+              <div className="p-3 bg-error/5 border border-error/20 rounded-xl">
+                <p className="text-sm text-error font-medium">This action cannot be undone.</p>
+                <p className="text-xs text-on-surface-variant mt-1">The customer and assigned partner (if any) will be notified of the cancellation.</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-on-surface mb-1.5">Reason for Cancellation *</label>
+                <textarea
+                  value={cancelReason}
+                  onChange={(e) => setCancelReason(e.target.value)}
+                  placeholder="e.g., Out of stock, Customer requested cancellation, Invalid prescription..."
+                  rows={3}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-outline-variant/50 bg-surface text-sm text-on-surface focus:outline-none focus:border-error resize-none"
+                />
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-outline-variant/30 flex items-center justify-end gap-3">
+              <button
+                onClick={() => { setCancelModal(null); setCancelReason(''); }}
+                className="px-4 py-2 rounded-xl text-sm font-semibold text-on-surface-variant hover:bg-surface-container transition-colors"
+              >
+                Go Back
+              </button>
+              <button
+                onClick={cancelOrder}
+                disabled={cancelLoading || !cancelReason.trim()}
+                className="px-6 py-2.5 bg-error text-white rounded-xl text-sm font-semibold hover:bg-error/90 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+              >
+                {cancelLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Ban className="w-4 h-4" />}
+                Cancel Order
               </button>
             </div>
           </div>
