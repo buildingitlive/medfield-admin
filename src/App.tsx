@@ -81,11 +81,11 @@ function AppContent() {
 
   // Admin Portal
   const renderAdminScreen = () => {
-    switch (route) {
+    switch (route.split('?')[0]) {
       case '/dashboard':
         return <DashboardScreen onNavigate={navigate} />;
       case '/orders':
-        return <OrdersScreen onNavigate={navigate} />;
+        return <OrdersScreen onNavigate={navigate} currentRoute={route} />;
       case '/users':
         return <UsersScreen onNavigate={navigate} />;
       case '/products':

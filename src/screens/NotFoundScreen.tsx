@@ -16,7 +16,7 @@ export const NotFoundScreen: React.FC<NotFoundScreenProps> = ({ onNavigate }) =>
         Page Not Found
       </h1>
       
-      <p className="text-on-surface-variant max-w-md mb-8">
+      <p className="text-on-surface-variant w-full max-w-[400px] mb-8 mx-auto leading-relaxed">
         The page you are looking for doesn't exist, has been removed, or you don't have permission to view it.
       </p>
       

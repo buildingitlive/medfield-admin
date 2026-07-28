@@ -63,7 +63,7 @@ export const PartnerDashboardScreen: React.FC<PartnerDashboardScreenProps> = () 
         title: `Order #${shortId} Delivered`,
         description: `Order successfully delivered by partner ${partnerProfile?.name || 'Partner'}.`,
         type: 'order_delivered',
-        link: '/orders',
+        link: `/orders?id=${orderId}`,
         is_read: false
       },
       {
@@ -72,7 +72,7 @@ export const PartnerDashboardScreen: React.FC<PartnerDashboardScreenProps> = () 
         title: 'Order Delivered 🎉',
         description: `Your order #${shortId} has been delivered successfully. Thank you for choosing MedField!`,
         type: 'order_delivered',
-        link: '/orders',
+        link: `/orders?id=${orderId}`,
         is_read: false
       }
     ]);

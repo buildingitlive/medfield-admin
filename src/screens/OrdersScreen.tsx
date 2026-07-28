@@ -6,6 +6,7 @@ import { QuantityWheel } from '../components/QuantityWheel';
 
 interface OrdersScreenProps {
   onNavigate: (route: string) => void;
+  currentRoute?: string;
 }
 
 interface Order {
@@ -36,7 +37,7 @@ interface Partner {
 type SortField = 'id' | 'created_at' | 'total' | 'status' | 'user_id';
 type SortDirection = 'asc' | 'desc';
 
-export const OrdersScreen: React.FC<OrdersScreenProps> = () => {
+export const OrdersScreen: React.FC<OrdersScreenProps> = ({ onNavigate, currentRoute }) => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [partners, setPartners] = useState<Partner[]>([]);
   const [loading, setLoading] = useState(true);
@@ -90,6 +91,60 @@ export const OrdersScreen: React.FC<OrdersScreenProps> = () => {
   useEffect(() => {
     setSelectedOrders([]);
   }, [page, statusFilter, assignmentFilter, sortField, sortDirection, searchQuery]);
+
+  // Handle auto-opening order details from notification
+  useEffect(() => {
+    const processNotification = () => {
+      const notif = (window as any).pendingNotificationForOrder;
+      if (!notif) return;
+      
+      // Consume it
+      (window as any).pendingNotificationForOrder = null;
+
+      // Extract full ID from link if it's valid, otherwise try to extract short ID from title/description
+      let targetId = notif.link?.split('id=')[1];
+      if (targetId === 'undefined') targetId = null;
+
+      if (!targetId) {
+        // Fallback for old notifications (extract short ID)
+        const match = notif.title?.match(/#([a-f0-9]+)/i) || notif.description?.match(/#([a-f0-9]+)/i);
+        if (match) {
+          const shortId = match[1];
+          // Search locally first
+          const localOrder = orders.find(o => o.id.startsWith(shortId));
+          if (localOrder) {
+            setDetailsModal(localOrder);
+          } else {
+            alert("This is an old notification and the order is not on the current page. Please scroll or search to find it!");
+          }
+        }
+        return;
+      }
+
+      // Normal logic with full UUID targetId
+      const targetOrder = orders.find(o => o.id === targetId);
+      if (targetOrder) {
+        setDetailsModal(targetOrder);
+      } else {
+        supabase
+          .from('orders')
+          .select('id, created_at, total, delivery_fee, status, user_id, assigned_partner_id, address_snapshot, prescription_url, prescription_id, medicine_text, notes, discount_percent, items:order_items(*), confirmed_items:order_confirmed_items(*)')
+          .eq('id', targetId)
+          .single()
+          .then(({ data }) => {
+            if (data) setDetailsModal(data);
+            else alert("Order not found. It may have been deleted.");
+          });
+      }
+    };
+
+    // Process on mount or when currentRoute/orders change
+    // Only process if we have finished loading the initial set of orders,
+    // so we don't accidentally fail a local search on an empty array.
+    if (!loading) {
+      processNotification();
+    }
+  }, [orders, currentRoute, loading]);
 
   const loadPartners = async () => {
     const { data } = await supabase.from('partners').select('id, name, region').eq('is_active', true);
@@ -154,7 +209,7 @@ export const OrdersScreen: React.FC<OrdersScreenProps> = () => {
         title: 'Order En Route 🚚',
         description: `Your order #${o.id.split('-')[0]} has been verified and assigned to our field partner for dispatch.`,
         type: 'order_assigned',
-        link: '/orders',
+        link: `/orders?id=${o.id}`,
         is_read: false
       });
     });
@@ -194,7 +249,7 @@ export const OrdersScreen: React.FC<OrdersScreenProps> = () => {
         title: 'Order Cancelled',
         description: `Your order #${shortId} has been cancelled. Reason: ${reason}`,
         type: 'order_cancelled',
-        link: '/orders',
+        link: `/orders?id=${cancelModal.id}`,
         is_read: false
       }
     ];
@@ -1028,7 +1083,7 @@ export const OrdersScreen: React.FC<OrdersScreenProps> = () => {
                     title: 'Order Confirmed! ✅',
                     description: `Your order #${shortId} has been confirmed by our pharmacist. Total: ₹${totalPrice.toFixed(2)}`,
                     type: 'order_confirmed',
-                    link: '/orders',
+                    link: `/orders?id=${confirmModal.id}`,
                     is_read: false,
                   });
 
@@ -1053,7 +1108,7 @@ export const OrdersScreen: React.FC<OrdersScreenProps> = () => {
       {cancelModal && createPortal(
         <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => { setCancelModal(null); setCancelReason(''); }}>
           <div
-            className="bg-surface-container-lowest rounded-2xl shadow-2xl w-full max-w-md"
+            className="bg-surface-container-lowest rounded-2xl shadow-2xl w-[90vw] sm:w-[400px] shrink-0 mx-auto"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}

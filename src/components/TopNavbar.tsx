@@ -200,7 +200,18 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({ onNavigate, onToggleMobile
                       notifications.map((notif) => (
                         <div 
                           key={notif.id} 
-                          className={`p-3.5 hover:bg-surface-container-low transition-colors flex items-start gap-3.5 border-b border-outline-variant/30 last:border-b-0 ${
+                          onClick={() => {
+                            if (notif.link) {
+                              if (notif.link.startsWith('/orders')) {
+                                (window as any).pendingNotificationForOrder = notif;
+                                onNavigate('/orders');
+                              } else {
+                                onNavigate(notif.link);
+                              }
+                              setShowNotificationsModal(false);
+                            }
+                          }}
+                          className={`p-3.5 hover:bg-surface-container-low transition-colors flex items-start gap-3.5 border-b border-outline-variant/30 last:border-b-0 cursor-pointer ${
                             !notif.is_read ? 'bg-primary/5 border-l-4 border-l-primary' : 'border-l-4 border-l-transparent'
                           }`}
                         >
