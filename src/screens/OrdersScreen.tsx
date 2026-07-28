@@ -37,7 +37,7 @@ interface Partner {
 type SortField = 'id' | 'created_at' | 'total' | 'status' | 'user_id';
 type SortDirection = 'asc' | 'desc';
 
-export const OrdersScreen: React.FC<OrdersScreenProps> = ({ onNavigate, currentRoute }) => {
+export const OrdersScreen: React.FC<OrdersScreenProps> = ({ currentRoute }) => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [partners, setPartners] = useState<Partner[]>([]);
   const [loading, setLoading] = useState(true);
